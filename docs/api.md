@@ -78,13 +78,15 @@ PATCH  /api/shapes/:id
 DELETE /api/shapes/:id
 ```
 
-### Agent (Phase 7)
+### Agent (Phase 8)
 
 ```
 GET  /api/agent/state         full show JSON
-GET  /api/agent/output        current DMX output
+GET  /api/agent/output        current DMX output (per universe)
 GET  /api/agent/programmer    active programmer values
 POST /api/agent/command       { action, payload } — see agent.md
+GET  /api/docs                Swagger UI
+GET  /api/docs/json           OpenAPI 3.0 spec JSON
 ```
 
 ---
@@ -98,9 +100,6 @@ Connect to `ws://localhost:3000` (Socket.io).
 | Event | Payload | Description |
 |---|---|---|
 | `agent:subscribe` | — | Subscribe to all state updates |
-| `programmer:set` | `{ fixtureId, channels }` | Set programmer values |
-| `programmer:clear` | — | Clear programmer |
-| `cue:go` | `{ cueListId }` | Advance cue list |
 
 ### Server → Client
 

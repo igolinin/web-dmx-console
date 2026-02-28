@@ -711,10 +711,10 @@ Then:
 | 2 | Fixture Library & Patch | complete |
 | 3 | Programmer | complete |
 | 4 | Cue Engine & Show Files | complete |
-| 5 | Chases | pending |
-| 6 | Shape Engine | pending |
-| 7 | Keyboard Control | pending |
-| 8 | LLM Agent Interface | pending |
+| 5 | Chases | complete |
+| 6 | Shape Engine | complete |
+| 7 | Keyboard Control | complete |
+| 8 | LLM Agent Interface | complete |
 
 ---
 

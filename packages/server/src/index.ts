@@ -18,6 +18,8 @@ import { cueListsRouter } from './api/cueLists.js';
 import { chasesRouter } from './api/chases.js';
 import { shapesRouter } from './api/shapes.js';
 import { showFileRouter } from './api/showFile.js';
+import { createAgentRouter } from './api/agent.js';
+import { docsRouter } from './api/openapi.js';
 import type { WsDmxTick, WsChaseStep } from '@dmx-console/shared';
 
 const PORT = 3000;
@@ -54,6 +56,8 @@ app.use('/api/cueLists', cueListsRouter);
 app.use('/api/chases', chasesRouter);
 app.use('/api/shapes', shapesRouter);
 app.use('/api/show', showFileRouter);
+app.use('/api/agent', createAgentRouter(universeBuffer));
+app.use('/api/docs', docsRouter);
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
