@@ -707,7 +707,7 @@ Then:
 
 | Phase | Name | Status |
 |---|---|---|
-| 1 | Foundation | pending |
+| 1 | Foundation | complete |
 | 2 | Fixture Library & Patch | pending |
 | 3 | Programmer | pending |
 | 4 | Cue Engine & Show Files | pending |

@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-console-bg text-console-text font-mono;
+  }
+}
+
+@layer utilities {
+  .console-panel {
+    @apply bg-console-panel border border-console-border rounded;
+  }
+}
