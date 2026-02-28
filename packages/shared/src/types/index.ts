@@ -174,6 +174,24 @@ export interface ShapeLayer {
   pixelTexture?: PixelTexture; // LED Bar (Pixels) mode
 }
 
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+
+export interface KeyBinding {
+  key: string; // e.g. ' ', 'Escape', 'F1', 'a'
+  ctrl?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+  description: string;
+  actionId: string; // e.g. 'cue.go', 'programmer.clear'
+}
+
+export interface ShowSettings {
+  keyBindings: KeyBinding[];
+  activeCueListId?: string; // Space/Enter → go on this cue list
+  activeChaseId?: string; // T → tap on this chase
+  playbackMasters: string[]; // F1–F8 → cue list or chase IDs (index 0–7)
+}
+
 // ── Show ──────────────────────────────────────────────────────────────────
 
 export interface ArtNetConfig {
@@ -196,6 +214,7 @@ export interface Show {
   cueLists: CueList[];
   chases: Chase[];
   shapes: ShapeLayer[];
+  settings: ShowSettings;
   artnet: ArtNetConfig;
 }
 

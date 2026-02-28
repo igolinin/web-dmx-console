@@ -2,14 +2,16 @@ import { useState, useEffect } from 'react';
 import type { Show } from '@dmx-console/shared';
 import { useSocket } from './hooks/useSocket.js';
 import { useShowStore } from './store/useShow.js';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
+import type { View } from './hooks/useKeyboardShortcuts.js';
+import { KeyMapModal } from './components/KeyMapModal.js';
 import { PatchView } from './views/PatchView.js';
 import { ProgrammerView } from './views/ProgrammerView.js';
 import { CueListView } from './views/CueListView.js';
 import { ChaseView } from './views/ChaseView.js';
 import { ShapeView } from './views/ShapeView.js';
 import { FixtureLibView } from './views/FixtureLibView.js';
-
-type View = 'patch' | 'programmer' | 'cuelist' | 'chase' | 'shape' | 'library';
+import { DEFAULT_KEY_BINDINGS } from '@dmx-console/shared';
 
 const NAV_ITEMS: { id: View; label: string; shortcut: string }[] = [
   { id: 'patch', label: 'Patch', shortcut: 'Alt+1' },
@@ -61,6 +63,7 @@ function UniverseBar() {
 
 export default function App() {
   const [view, setView] = useState<View>('programmer');
+  const [helpOpen, setHelpOpen] = useState(false);
   const socket = useSocket();
   const connected = useShowStore((s) => s.connected);
   const setConnected = useShowStore((s) => s.setConnected);
@@ -78,27 +81,13 @@ export default function App() {
     };
   }, [socket, setConnected]);
 
-  // Alt+1..6 view switching
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (!e.altKey) return;
-      const map: Record<string, View> = {
-        '1': 'patch',
-        '2': 'programmer',
-        '3': 'cuelist',
-        '4': 'chase',
-        '5': 'shape',
-        '6': 'library',
-      };
-      const v = map[e.key];
-      if (v) {
-        setView(v);
-        e.preventDefault();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
+  // Install keyboard shortcuts
+  useKeyboardShortcuts({
+    setView,
+    toggleHelp: () => setHelpOpen((o) => !o),
+    activeCueListId: show?.settings.activeCueListId,
+    activeChaseId: show?.settings.activeChaseId,
+  });
 
   const renderView = () => {
     switch (view) {
@@ -117,8 +106,13 @@ export default function App() {
     }
   };
 
+  const keyBindings = show?.settings.keyBindings ?? DEFAULT_KEY_BINDINGS;
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-console-bg">
+      {/* Key map help overlay */}
+      {helpOpen && <KeyMapModal bindings={keyBindings} onClose={() => setHelpOpen(false)} />}
+
       {/* Top nav bar */}
       <nav className="flex items-center gap-1 px-3 py-1.5 bg-console-panel border-b border-console-border shrink-0">
         <div className="flex items-center gap-2 mr-4">
@@ -146,6 +140,13 @@ export default function App() {
         ))}
 
         <div className="ml-auto flex items-center gap-2">
+          <button
+            className="px-2 py-1 text-xs rounded border border-console-border text-console-dim hover:text-console-text transition-colors"
+            title="Keyboard shortcuts (?)"
+            onClick={() => setHelpOpen((o) => !o)}
+          >
+            ?
+          </button>
           <button
             className="px-3 py-1 text-sm rounded border border-console-border text-console-dim hover:text-console-text hover:border-console-active transition-colors"
             onClick={() => {

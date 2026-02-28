@@ -1,4 +1,5 @@
 import type { Show } from '@dmx-console/shared';
+import { DEFAULT_KEY_BINDINGS } from '@dmx-console/shared';
 
 export const show: Show = {
   version: '1',
@@ -13,6 +14,10 @@ export const show: Show = {
   cueLists: [],
   chases: [],
   shapes: [],
+  settings: {
+    keyBindings: DEFAULT_KEY_BINDINGS,
+    playbackMasters: [],
+  },
   artnet: {
     host: '255.255.255.255',
     broadcast: true,
