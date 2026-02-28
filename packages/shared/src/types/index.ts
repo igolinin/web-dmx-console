@@ -200,7 +200,7 @@ export interface Show {
 // ── WebSocket Events ──────────────────────────────────────────────────────
 
 export interface WsStateUpdate {
-  changed: Array<keyof Show>;
+  changed: (keyof Show)[];
 }
 
 export interface WsDmxTick {

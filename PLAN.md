@@ -708,8 +708,8 @@ Then:
 | Phase | Name | Status |
 |---|---|---|
 | 1 | Foundation | complete |
-| 2 | Fixture Library & Patch | pending |
-| 3 | Programmer | pending |
+| 2 | Fixture Library & Patch | complete |
+| 3 | Programmer | complete |
 | 4 | Cue Engine & Show Files | pending |
 | 5 | Chases | pending |
 | 6 | Shape Engine | pending |

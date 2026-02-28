@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE FixtureDefinition>
+<FixtureDefinition xmlns="http://www.qlcplus.org/FixtureDefinition">
+ <Creator>
+  <Name>Q Light Controller Plus</Name>
+  <Version>4.12.3</Version>
+  <Author>DMX Console</Author>
+ </Creator>
+ <Manufacturer>Generic</Manufacturer>
+ <Model>LED Bar 8 Pixel</Model>
+ <Type>LED Bar (Pixels)</Type>
+ <Channel Name="Red 1"><Group Byte="0">Colour</Group><Colour>Red</Colour><Capability Min="0" Max="255">Red 1</Capability></Channel>
+ <Channel Name="Green 1"><Group Byte="0">Colour</Group><Colour>Green</Colour><Capability Min="0" Max="255">Green 1</Capability></Channel>
+ <Channel Name="Blue 1"><Group Byte="0">Colour</Group><Colour>Blue</Colour><Capability Min="0" Max="255">Blue 1</Capability></Channel>
+ <Channel Name="Red 2"><Group Byte="0">Colour</Group><Colour>Red</Colour><Capability Min="0" Max="255">Red 2</Capability></Channel>
+ <Channel Name="Green 2"><Group Byte="0">Colour</Group><Colour>Green</Colour><Capability Min="0" Max="255">Green 2</Capability></Channel>
+ <Channel Name="Blue 2"><Group Byte="0">Colour</Group><Colour>Blue</Colour><Capability Min="0" Max="255">Blue 2</Capability></Channel>
+ <Channel Name="Red 3"><Group Byte="0">Colour</Group><Colour>Red</Colour><Capability Min="0" Max="255">Red 3</Capability></Channel>
+ <Channel Name="Green 3"><Group Byte="0">Colour</Group><Colour>Green</Colour><Capability Min="0" Max="255">Green 3</Capability></Channel>
+ <Channel Name="Blue 3"><Group Byte="0">Colour</Group><Colour>Blue</Colour><Capability Min="0" Max="255">Blue 3</Capability></Channel>
+ <Channel Name="Red 4"><Group Byte="0">Colour</Group><Colour>Red</Colour><Capability Min="0" Max="255">Red 4</Capability></Channel>
+ <Channel Name="Green 4"><Group Byte="0">Colour</Group><Colour>Green</Colour><Capability Min="0" Max="255">Green 4</Capability></Channel>
+ <Channel Name="Blue 4"><Group Byte="0">Colour</Group><Colour>Blue</Colour><Capability Min="0" Max="255">Blue 4</Capability></Channel>
+ <Channel Name="Red 5"><Group Byte="0">Colour</Group><Colour>Red</Colour><Capability Min="0" Max="255">Red 5</Capability></Channel>
+ <Channel Name="Green 5"><Group Byte="0">Colour</Group><Colour>Green</Colour><Capability Min="0" Max="255">Green 5</Capability></Channel>
+ <Channel Name="Blue 5"><Group Byte="0">Colour</Group><Colour>Blue</Colour><Capability Min="0" Max="255">Blue 5</Capability></Channel>
+ <Channel Name="Red 6"><Group Byte="0">Colour</Group><Colour>Red</Colour><Capability Min="0" Max="255">Red 6</Capability></Channel>
+ <Channel Name="Green 6"><Group Byte="0">Colour</Group><Colour>Green</Colour><Capability Min="0" Max="255">Green 6</Capability></Channel>
+ <Channel Name="Blue 6"><Group Byte="0">Colour</Group><Colour>Blue</Colour><Capability Min="0" Max="255">Blue 6</Capability></Channel>
+ <Channel Name="Red 7"><Group Byte="0">Colour</Group><Colour>Red</Colour><Capability Min="0" Max="255">Red 7</Capability></Channel>
+ <Channel Name="Green 7"><Group Byte="0">Colour</Group><Colour>Green</Colour><Capability Min="0" Max="255">Green 7</Capability></Channel>
+ <Channel Name="Blue 7"><Group Byte="0">Colour</Group><Colour>Blue</Colour><Capability Min="0" Max="255">Blue 7</Capability></Channel>
+ <Channel Name="Red 8"><Group Byte="0">Colour</Group><Colour>Red</Colour><Capability Min="0" Max="255">Red 8</Capability></Channel>
+ <Channel Name="Green 8"><Group Byte="0">Colour</Group><Colour>Green</Colour><Capability Min="0" Max="255">Green 8</Capability></Channel>
+ <Channel Name="Blue 8"><Group Byte="0">Colour</Group><Colour>Blue</Colour><Capability Min="0" Max="255">Blue 8</Capability></Channel>
+ <Mode Name="24 Channel">
+  <Physical>
+   <Bulb Type="LED" LumensPerWatt="0" ColourTemperature="0"/>
+   <Dimensions Weight="2.5" Width="600" Height="80" Depth="80"/>
+   <Lens Name="Other" DegreesMin="30" DegreesMax="30"/>
+   <Focus Type="Fixed" PanMax="0" TiltMax="0"/>
+   <Technical PowerConsumption="50" DmxConnector="3-pin"/>
+  </Physical>
+  <Channel Number="0">Red 1</Channel><Channel Number="1">Green 1</Channel><Channel Number="2">Blue 1</Channel>
+  <Channel Number="3">Red 2</Channel><Channel Number="4">Green 2</Channel><Channel Number="5">Blue 2</Channel>
+  <Channel Number="6">Red 3</Channel><Channel Number="7">Green 3</Channel><Channel Number="8">Blue 3</Channel>
+  <Channel Number="9">Red 4</Channel><Channel Number="10">Green 4</Channel><Channel Number="11">Blue 4</Channel>
+  <Channel Number="12">Red 5</Channel><Channel Number="13">Green 5</Channel><Channel Number="14">Blue 5</Channel>
+  <Channel Number="15">Red 6</Channel><Channel Number="16">Green 6</Channel><Channel Number="17">Blue 6</Channel>
+  <Channel Number="18">Red 7</Channel><Channel Number="19">Green 7</Channel><Channel Number="20">Blue 7</Channel>
+  <Channel Number="21">Red 8</Channel><Channel Number="22">Green 8</Channel><Channel Number="23">Blue 8</Channel>
+ </Mode>
+</FixtureDefinition>

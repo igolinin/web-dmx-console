@@ -3,47 +3,32 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { ArtNetSender } from './artnet/sender.js';
 import { UniverseBuffer } from './artnet/universe.js';
-import type { Show, WsDmxTick } from '@dmx-console/shared';
+import { show } from './store/show.js';
+import { programmer } from './store/programmer.js';
+import { loadFixtureLibrary } from './fixtures/loader.js';
+import { mergeToBuffer } from './engine/merger.js';
+import { fixturesRouter } from './api/fixtures.js';
+import { patchRouter } from './api/patch.js';
+import { programmerRouter } from './api/programmer.js';
+import type { WsDmxTick } from '@dmx-console/shared';
 
 const PORT = 3000;
-const DMX_REFRESH_HZ = 30;
 
-// ── In-memory show state ────────────────────────────────────────────────────
+// ── Shared state ─────────────────────────────────────────────────────────────
 
-const universeBuffer = new UniverseBuffer();
+export const universeBuffer = new UniverseBuffer();
 
-const show: Show = {
-  version: '1',
-  meta: {
-    title: 'Untitled Show',
-    author: '',
-    createdAt: new Date().toISOString(),
-    modifiedAt: new Date().toISOString(),
-  },
-  fixtures: [],
-  fixtureGroups: [],
-  cueLists: [],
-  chases: [],
-  shapes: [],
-  artnet: {
-    host: '255.255.255.255',
-    broadcast: true,
-    refreshHz: DMX_REFRESH_HZ,
-    universes: [0],
-  },
-};
-
-// ── Express + Socket.io setup ───────────────────────────────────────────────
+// ── Express + Socket.io setup ─────────────────────────────────────────────────
 
 const app = express();
 app.use(express.json());
 
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
+export const io = new Server(httpServer, {
   cors: { origin: '*' },
 });
 
-// ── REST endpoints ──────────────────────────────────────────────────────────
+// ── REST routes ───────────────────────────────────────────────────────────────
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', version: show.version });
@@ -53,7 +38,11 @@ app.get('/api/state', (_req, res) => {
   res.json(show);
 });
 
-// ── WebSocket ───────────────────────────────────────────────────────────────
+app.use('/api/fixtures', fixturesRouter);
+app.use('/api/patch', patchRouter);
+app.use('/api/programmer', programmerRouter);
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
   console.log('[ws] client connected:', socket.id);
@@ -67,7 +56,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── Art-Net output loop ─────────────────────────────────────────────────────
+// ── Art-Net output loop ───────────────────────────────────────────────────────
 
 let artnetSender: ArtNetSender | null = null;
 
@@ -80,7 +69,16 @@ function startArtNet(): void {
   const intervalMs = Math.floor(1000 / show.artnet.refreshHz);
 
   setInterval(() => {
-    for (const universe of show.artnet.universes) {
+    // Re-merge programmer + cue values into the universe buffer each tick
+    mergeToBuffer(show.fixtures, new Map(), programmer.values, universeBuffer);
+
+    // Determine which universes to emit: configured + any with patched fixtures
+    const universesToSend = new Set([
+      ...show.artnet.universes,
+      ...show.fixtures.map((f) => f.universe),
+    ]);
+
+    for (const universe of universesToSend) {
       const buf = universeBuffer.get(universe);
       artnetSender!.send(universe, buf);
 
@@ -92,11 +90,17 @@ function startArtNet(): void {
   console.log(`[artnet] sending to ${show.artnet.host} @ ${show.artnet.refreshHz}Hz`);
 }
 
-// ── Bootstrap ───────────────────────────────────────────────────────────────
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
 
-httpServer.listen(PORT, () => {
-  console.log(`[server] listening on http://localhost:${PORT}`);
-  startArtNet();
-});
+async function bootstrap(): Promise<void> {
+  await loadFixtureLibrary();
 
-export { app, io, show, universeBuffer };
+  httpServer.listen(PORT, () => {
+    console.log(`[server] listening on http://localhost:${PORT}`);
+    startArtNet();
+  });
+}
+
+void bootstrap();
+
+export { show };

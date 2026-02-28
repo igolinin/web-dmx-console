@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE FixtureDefinition>
+<FixtureDefinition xmlns="http://www.qlcplus.org/FixtureDefinition">
+ <Creator>
+  <Name>Q Light Controller Plus</Name>
+  <Version>4.12.3</Version>
+  <Author>DMX Console</Author>
+ </Creator>
+ <Manufacturer>Generic</Manufacturer>
+ <Model>Strobe</Model>
+ <Type>Strobe</Type>
+ <Channel Name="Dimmer">
+  <Group Byte="0">Intensity</Group>
+  <Preset>IntensityDimmer</Preset>
+  <Capability Min="0" Max="255">Intensity</Capability>
+ </Channel>
+ <Channel Name="Strobe">
+  <Group Byte="0">Shutter</Group>
+  <Capability Min="0" Max="9">No strobe</Capability>
+  <Capability Min="10" Max="255">Strobe slow-fast</Capability>
+ </Channel>
+ <Mode Name="2 Channel">
+  <Physical>
+   <Bulb Type="LED" LumensPerWatt="0" ColourTemperature="6000"/>
+   <Dimensions Weight="2.0" Width="280" Height="180" Depth="120"/>
+   <Lens Name="Other" DegreesMin="60" DegreesMax="60"/>
+   <Focus Type="Fixed" PanMax="0" TiltMax="0"/>
+   <Technical PowerConsumption="80" DmxConnector="3-pin"/>
+  </Physical>
+  <Channel Number="0">Dimmer</Channel>
+  <Channel Number="1">Strobe</Channel>
+ </Mode>
+</FixtureDefinition>
