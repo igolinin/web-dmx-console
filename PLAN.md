@@ -573,7 +573,7 @@ cue 2 with configurable timing. Show saves and reloads.
 
 ---
 
-### Phase 5 — Chases
+### Phase 5 — Chases ✅ complete
 
 **Goal**: Step-based sequences with BPM control.
 

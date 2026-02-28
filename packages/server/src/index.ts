@@ -6,6 +6,7 @@ import { UniverseBuffer } from './artnet/universe.js';
 import { show } from './store/show.js';
 import { programmer } from './store/programmer.js';
 import { playbackEngine } from './store/playback.js';
+import { chaseEngine } from './store/chaseEngine.js';
 import { saveShow } from './store/persist.js';
 import { loadFixtureLibrary } from './fixtures/loader.js';
 import { mergeToBuffer } from './engine/merger.js';
@@ -13,8 +14,9 @@ import { fixturesRouter } from './api/fixtures.js';
 import { patchRouter } from './api/patch.js';
 import { programmerRouter } from './api/programmer.js';
 import { cueListsRouter } from './api/cueLists.js';
+import { chasesRouter } from './api/chases.js';
 import { showFileRouter } from './api/showFile.js';
-import type { WsDmxTick } from '@dmx-console/shared';
+import type { WsDmxTick, WsChaseStep } from '@dmx-console/shared';
 
 const PORT = 3000;
 const AUTO_SAVE_MS = 30_000;
@@ -47,6 +49,7 @@ app.use('/api/fixtures', fixturesRouter);
 app.use('/api/patch', patchRouter);
 app.use('/api/programmer', programmerRouter);
 app.use('/api/cueLists', cueListsRouter);
+app.use('/api/chases', chasesRouter);
 app.use('/api/show', showFileRouter);
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -78,11 +81,23 @@ function startArtNet(): void {
   setInterval(() => {
     const now = Date.now();
 
-    // Advance any active cue fades
+    // Advance cue fades
     playbackEngine.tick(now);
 
-    // Merge: cue output first, then programmer on top (HTP/LTP)
+    // Advance chase sequencers; emit chase:step on step advance
+    chaseEngine.tick(show.chases, now, (chaseId, stepIndex) => {
+      const stepEvent: WsChaseStep = { chaseId, stepIndex };
+      io.emit('chase:step', stepEvent);
+    });
+
+    // Build merged cue+chase output (chase LTP-overrides cue), then programmer on top
     const cueValues = playbackEngine.getCueValues();
+    const chaseValues = chaseEngine.getChaseValues();
+    // Chase overrides cue (LTP)
+    for (const [id, channels] of chaseValues) {
+      const existing = cueValues.get(id) ?? {};
+      cueValues.set(id, { ...existing, ...channels });
+    }
     mergeToBuffer(show.fixtures, cueValues, programmer.values, universeBuffer);
 
     // Determine which universes to emit: configured + any with patched fixtures
