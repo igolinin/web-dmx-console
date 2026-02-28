@@ -710,7 +710,7 @@ Then:
 | 1 | Foundation | complete |
 | 2 | Fixture Library & Patch | complete |
 | 3 | Programmer | complete |
-| 4 | Cue Engine & Show Files | pending |
+| 4 | Cue Engine & Show Files | complete |
 | 5 | Chases | pending |
 | 6 | Shape Engine | pending |
 | 7 | Keyboard Control | pending |

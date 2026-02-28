@@ -5,14 +5,19 @@ import { ArtNetSender } from './artnet/sender.js';
 import { UniverseBuffer } from './artnet/universe.js';
 import { show } from './store/show.js';
 import { programmer } from './store/programmer.js';
+import { playbackEngine } from './store/playback.js';
+import { saveShow } from './store/persist.js';
 import { loadFixtureLibrary } from './fixtures/loader.js';
 import { mergeToBuffer } from './engine/merger.js';
 import { fixturesRouter } from './api/fixtures.js';
 import { patchRouter } from './api/patch.js';
 import { programmerRouter } from './api/programmer.js';
+import { cueListsRouter } from './api/cueLists.js';
+import { showFileRouter } from './api/showFile.js';
 import type { WsDmxTick } from '@dmx-console/shared';
 
 const PORT = 3000;
+const AUTO_SAVE_MS = 30_000;
 
 // ── Shared state ─────────────────────────────────────────────────────────────
 
@@ -41,6 +46,8 @@ app.get('/api/state', (_req, res) => {
 app.use('/api/fixtures', fixturesRouter);
 app.use('/api/patch', patchRouter);
 app.use('/api/programmer', programmerRouter);
+app.use('/api/cueLists', cueListsRouter);
+app.use('/api/show', showFileRouter);
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
 
@@ -69,8 +76,14 @@ function startArtNet(): void {
   const intervalMs = Math.floor(1000 / show.artnet.refreshHz);
 
   setInterval(() => {
-    // Re-merge programmer + cue values into the universe buffer each tick
-    mergeToBuffer(show.fixtures, new Map(), programmer.values, universeBuffer);
+    const now = Date.now();
+
+    // Advance any active cue fades
+    playbackEngine.tick(now);
+
+    // Merge: cue output first, then programmer on top (HTP/LTP)
+    const cueValues = playbackEngine.getCueValues();
+    mergeToBuffer(show.fixtures, cueValues, programmer.values, universeBuffer);
 
     // Determine which universes to emit: configured + any with patched fixtures
     const universesToSend = new Set([
@@ -90,6 +103,17 @@ function startArtNet(): void {
   console.log(`[artnet] sending to ${show.artnet.host} @ ${show.artnet.refreshHz}Hz`);
 }
 
+// ── Auto-save ─────────────────────────────────────────────────────────────────
+
+function startAutoSave(): void {
+  setInterval(() => {
+    saveShow(show).catch((err: unknown) => {
+      console.warn('[persist] auto-save failed:', (err as Error).message);
+    });
+  }, AUTO_SAVE_MS);
+  console.log(`[persist] auto-save enabled (every ${AUTO_SAVE_MS / 1000}s)`);
+}
+
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 async function bootstrap(): Promise<void> {
@@ -98,6 +122,7 @@ async function bootstrap(): Promise<void> {
   httpServer.listen(PORT, () => {
     console.log(`[server] listening on http://localhost:${PORT}`);
     startArtNet();
+    startAutoSave();
   });
 }
 
