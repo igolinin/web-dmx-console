@@ -136,6 +136,7 @@ export interface Chase {
 // ── Shape Engine ──────────────────────────────────────────────────────────
 
 export type ShapeWaveform = 'sine' | 'cosine' | 'triangle' | 'square' | 'ramp' | 'random';
+export type PixelTexture = 'rainbow' | 'gradient' | 'chase' | 'fire';
 
 export type ShapeTarget =
   | 'pan'
@@ -170,6 +171,7 @@ export interface ShapeLayer {
   spread: number; // 0–360 degrees phase offset between consecutive fixtures
   phaseOffset: number; // 0–360 global phase at t=0
   active: boolean;
+  pixelTexture?: PixelTexture; // LED Bar (Pixels) mode
 }
 
 // ── Show ──────────────────────────────────────────────────────────────────

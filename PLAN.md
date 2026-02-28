@@ -598,7 +598,7 @@ cycle through colours in sequence.
 
 ---
 
-### Phase 6 — Shape Engine
+### Phase 6 — Shape Engine ✅ complete
 
 **Goal**: Continuous parameter effects for moving lights and LED arrays.
 

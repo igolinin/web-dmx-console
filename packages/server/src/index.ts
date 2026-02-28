@@ -7,6 +7,7 @@ import { show } from './store/show.js';
 import { programmer } from './store/programmer.js';
 import { playbackEngine } from './store/playback.js';
 import { chaseEngine } from './store/chaseEngine.js';
+import { shapeEngine } from './engine/shapeEngine.js';
 import { saveShow } from './store/persist.js';
 import { loadFixtureLibrary } from './fixtures/loader.js';
 import { mergeToBuffer } from './engine/merger.js';
@@ -15,6 +16,7 @@ import { patchRouter } from './api/patch.js';
 import { programmerRouter } from './api/programmer.js';
 import { cueListsRouter } from './api/cueLists.js';
 import { chasesRouter } from './api/chases.js';
+import { shapesRouter } from './api/shapes.js';
 import { showFileRouter } from './api/showFile.js';
 import type { WsDmxTick, WsChaseStep } from '@dmx-console/shared';
 
@@ -50,6 +52,7 @@ app.use('/api/patch', patchRouter);
 app.use('/api/programmer', programmerRouter);
 app.use('/api/cueLists', cueListsRouter);
 app.use('/api/chases', chasesRouter);
+app.use('/api/shapes', shapesRouter);
 app.use('/api/show', showFileRouter);
 
 // ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -90,11 +93,20 @@ function startArtNet(): void {
       io.emit('chase:step', stepEvent);
     });
 
-    // Build merged cue+chase output (chase LTP-overrides cue), then programmer on top
+    // Advance shape engine
+    shapeEngine.tick(show.shapes, show.fixtures, now);
+
+    // Build merged output: cue → chase (LTP) → shape (LTP) → programmer on top
     const cueValues = playbackEngine.getCueValues();
     const chaseValues = chaseEngine.getChaseValues();
+    const shapeValues = shapeEngine.getShapeValues();
     // Chase overrides cue (LTP)
     for (const [id, channels] of chaseValues) {
+      const existing = cueValues.get(id) ?? {};
+      cueValues.set(id, { ...existing, ...channels });
+    }
+    // Shape overrides cue+chase (LTP)
+    for (const [id, channels] of shapeValues) {
       const existing = cueValues.get(id) ?? {};
       cueValues.set(id, { ...existing, ...channels });
     }
