@@ -1,8 +1,35 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { FixtureDef } from '@dmx-console/shared';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { FixtureDef, PatchedFixture } from '@dmx-console/shared';
 import { useShowStore } from '../store/useShow.js';
 import { UniverseGrid } from '../components/UniverseGrid.js';
 import { FixtureCard } from '../components/FixtureCard.js';
+
+/** Return the lowest DMX address (1–512) where `chCount` consecutive channels
+ *  are free in the given universe, or 1 if nothing is patched yet. */
+function firstFreeAddress(
+  fixtures: PatchedFixture[],
+  universe: number,
+  defMap: Record<string, FixtureDef>,
+  chCount: number,
+): number {
+  const occupied = new Set<number>();
+  for (const f of fixtures) {
+    if (f.universe !== universe) continue;
+    const count = defMap[f.defId]?.modes[f.modeIndex]?.channelNames.length ?? 1;
+    for (let i = 0; i < count; i++) occupied.add(f.address + i);
+  }
+  for (let addr = 1; addr <= 513 - chCount; addr++) {
+    let free = true;
+    for (let i = 0; i < chCount; i++) {
+      if (occupied.has(addr + i)) {
+        free = false;
+        break;
+      }
+    }
+    if (free) return addr;
+  }
+  return 1;
+}
 
 export function PatchView() {
   const show = useShowStore((s) => s.show);
@@ -14,7 +41,13 @@ export function PatchView() {
   const [search, setSearch] = useState('');
   const [selectedDefId, setSelectedDefId] = useState<string | null>(null);
   const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null);
-  const [addForm, setAddForm] = useState({ universe: 0, address: 1, label: '', modeIndex: 0 });
+  const [addForm, setAddForm] = useState({
+    universe: 0,
+    address: 1,
+    label: '',
+    modeIndex: 0,
+    qty: 1,
+  });
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -39,6 +72,20 @@ export function PatchView() {
 
   const selectedDef = selectedDefId ? defMap[selectedDefId] : undefined;
 
+  // Channel count for the currently selected def + mode
+  const selectedChCount = useMemo(
+    () => selectedDef?.modes[addForm.modeIndex]?.channelNames.length ?? 1,
+    [selectedDef, addForm.modeIndex],
+  );
+
+  // Auto-compute the first free address whenever def / universe / mode changes
+  useEffect(() => {
+    if (!selectedDefId || !show) return;
+    const addr = firstFreeAddress(show.fixtures, addForm.universe, defMap, selectedChCount);
+    setAddForm((f) => ({ ...f, address: addr }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDefId, addForm.universe, addForm.modeIndex, selectedChCount]);
+
   const refreshPatch = useCallback(() => {
     void fetch('/api/state')
       .then((r) => r.json())
@@ -51,30 +98,45 @@ export function PatchView() {
     setAdding(true);
 
     try {
-      const res = await fetch('/api/patch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          defId: selectedDefId,
-          universe: addForm.universe,
-          address: addForm.address,
-          label: addForm.label || undefined,
-          modeIndex: addForm.modeIndex,
-        }),
-      });
+      let nextAddr = addForm.address;
+      const qty = Math.max(1, addForm.qty);
 
-      if (!res.ok) {
-        const body = (await res.json()) as { error?: string };
-        setError(body.error ?? 'Failed to add fixture');
-      } else {
-        refreshPatch();
+      for (let i = 0; i < qty; i++) {
+        const label =
+          qty > 1
+            ? `${addForm.label !== '' ? addForm.label : (selectedDef?.model ?? '')} ${i + 1}`.trim()
+            : addForm.label !== ''
+              ? addForm.label
+              : undefined;
+
+        const res = await fetch('/api/patch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            defId: selectedDefId,
+            universe: addForm.universe,
+            address: nextAddr,
+            label,
+            modeIndex: addForm.modeIndex,
+          }),
+        });
+
+        if (!res.ok) {
+          const body = (await res.json()) as { error?: string };
+          setError(body.error ?? 'Failed to add fixture');
+          break;
+        }
+
+        nextAddr += selectedChCount;
       }
+
+      refreshPatch();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setAdding(false);
     }
-  }, [selectedDefId, addForm, refreshPatch]);
+  }, [selectedDefId, addForm, selectedDef, selectedChCount, refreshPatch]);
 
   const handleRemove = useCallback(
     async (id: string) => {
@@ -113,7 +175,7 @@ export function PatchView() {
               ].join(' ')}
               onClick={() => {
                 setSelectedDefId(def.id);
-                setAddForm((f) => ({ ...f, label: def.model, modeIndex: 0 }));
+                setAddForm((f) => ({ ...f, label: def.model, modeIndex: 0, qty: 1 }));
               }}
             >
               <div className="font-medium text-console-text">{def.model}</div>
@@ -159,6 +221,9 @@ export function PatchView() {
                     setAddForm((f) => ({ ...f, address: parseInt(e.target.value, 10) || 1 }))
                   }
                 />
+                <span className="ml-1 text-console-dim/60">
+                  ({selectedChCount}ch → {addForm.address + selectedChCount - 1})
+                </span>
               </label>
               {selectedDef.modes.length > 1 && (
                 <label className="text-xs text-console-dim">
@@ -186,12 +251,25 @@ export function PatchView() {
                   onChange={(e) => setAddForm((f) => ({ ...f, label: e.target.value }))}
                 />
               </label>
+              <label className="text-xs text-console-dim">
+                Qty
+                <input
+                  type="number"
+                  className="ml-1 w-14 bg-console-bg border border-console-border rounded px-2 py-0.5 text-sm text-console-text"
+                  value={addForm.qty}
+                  min={1}
+                  max={64}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, qty: parseInt(e.target.value, 10) || 1 }))
+                  }
+                />
+              </label>
               <button
                 className="px-3 py-1 text-sm rounded bg-console-active text-white hover:bg-blue-600 disabled:opacity-50"
                 onClick={() => void handleAdd()}
                 disabled={adding}
               >
-                Add to Patch
+                {addForm.qty > 1 ? `Add ${addForm.qty} to Patch` : 'Add to Patch'}
               </button>
             </div>
             {error && <div className="mt-1 text-xs text-console-danger">{error}</div>}
