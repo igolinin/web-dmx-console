@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import type { Show } from '@dmx-console/shared';
+import { useState, useEffect, useCallback } from 'react';
 import { useSocket } from './hooks/useSocket.js';
 import { useShowStore } from './store/useShow.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
@@ -64,6 +63,7 @@ function UniverseBar() {
 export default function App() {
   const [view, setView] = useState<View>('programmer');
   const [helpOpen, setHelpOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const socket = useSocket();
   const connected = useShowStore((s) => s.connected);
   const setConnected = useShowStore((s) => s.setConnected);
@@ -80,6 +80,13 @@ export default function App() {
       socket.off('disconnect', onDisconnect);
     };
   }, [socket, setConnected]);
+
+  const handleSave = useCallback(() => {
+    setSaving(true);
+    void fetch('/api/show/save', { method: 'POST' })
+      .then(() => setSaving(false))
+      .catch(() => setSaving(false));
+  }, []);
 
   // Install keyboard shortcuts
   useKeyboardShortcuts({
@@ -108,6 +115,19 @@ export default function App() {
 
   const keyBindings = show?.settings.keyBindings ?? DEFAULT_KEY_BINDINGS;
 
+  if (!show) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-console-bg text-console-text gap-3">
+        <div
+          className={`w-3 h-3 rounded-full ${connected ? 'bg-console-success animate-pulse' : 'bg-console-danger'}`}
+        />
+        <span className="text-sm text-console-dim">
+          {connected ? 'Loading show…' : 'Connecting to server…'}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-console-bg">
       {/* Key map help overlay */}
@@ -119,9 +139,7 @@ export default function App() {
           <div
             className={`w-2 h-2 rounded-full ${connected ? 'bg-console-success' : 'bg-console-danger'}`}
           />
-          <span className="text-console-text text-sm font-semibold">
-            {show?.meta.title ?? 'DMX Console'}
-          </span>
+          <span className="text-console-text text-sm font-semibold">{show.meta.title}</span>
         </div>
 
         {NAV_ITEMS.map(({ id, label }) => (
@@ -148,14 +166,12 @@ export default function App() {
             ?
           </button>
           <button
-            className="px-3 py-1 text-sm rounded border border-console-border text-console-dim hover:text-console-text hover:border-console-active transition-colors"
-            onClick={() => {
-              void fetch('/api/state')
-                .then((r) => r.json() as Promise<Show>)
-                .then((s) => useShowStore.getState().setShow(s));
-            }}
+            className="px-3 py-1 text-sm rounded border border-console-border text-console-dim hover:text-console-text hover:border-console-active transition-colors disabled:opacity-40"
+            onClick={handleSave}
+            disabled={saving}
+            title="Save show (Ctrl+S)"
           >
-            Save
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </nav>
