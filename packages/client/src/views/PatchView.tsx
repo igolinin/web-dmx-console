@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { FixtureDef, PatchedFixture } from '@dmx-console/shared';
+import type { FixtureDef, PatchedFixture, FixtureGroup } from '@dmx-console/shared';
 import { useShowStore } from '../store/useShow.js';
 import { UniverseGrid } from '../components/UniverseGrid.js';
 import { FixtureCard } from '../components/FixtureCard.js';
@@ -147,6 +147,7 @@ export function PatchView() {
   );
 
   const fixtures = show?.fixtures ?? [];
+  const groups = show?.fixtureGroups ?? [];
   const activeUniverse = show?.artnet.universes[0] ?? 0;
   const dmxData = dmxOutput[activeUniverse] ?? Array<number>(512).fill(0);
 
@@ -310,6 +311,171 @@ export function PatchView() {
             onChannelClick={(ch) => console.log('channel clicked:', ch)}
           />
         </div>
+      </div>
+
+      {/* Right: groups panel */}
+      <GroupsPanel fixtures={fixtures} groups={groups} onRefresh={refreshPatch} />
+    </div>
+  );
+}
+
+// ── Groups panel ────────────────────────────────────────────────────────────
+
+function GroupsPanel({
+  fixtures,
+  groups,
+  onRefresh,
+}: {
+  fixtures: PatchedFixture[];
+  groups: FixtureGroup[];
+  onRefresh: () => void;
+}) {
+  const [newLabel, setNewLabel] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
+
+  // Auto-select first group when list changes and nothing is selected
+  useEffect(() => {
+    if (!selectedGroupId && groups.length > 0) setSelectedGroupId(groups[0]!.id);
+  }, [groups, selectedGroupId]);
+
+  const createGroup = useCallback(async () => {
+    if (!newLabel.trim()) return;
+    setCreating(true);
+    try {
+      await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: newLabel.trim() }),
+      });
+      setNewLabel('');
+      onRefresh();
+    } finally {
+      setCreating(false);
+    }
+  }, [newLabel, onRefresh]);
+
+  const deleteGroup = useCallback(
+    async (id: string) => {
+      await fetch(`/api/groups/${id}`, { method: 'DELETE' });
+      if (selectedGroupId === id) setSelectedGroupId(null);
+      onRefresh();
+    },
+    [selectedGroupId, onRefresh],
+  );
+
+  const toggleFixtureInGroup = useCallback(
+    async (groupId: string, fixtureId: string, currentIds: string[]) => {
+      const next = currentIds.includes(fixtureId)
+        ? currentIds.filter((id) => id !== fixtureId)
+        : [...currentIds, fixtureId];
+      await fetch(`/api/groups/${groupId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fixtureIds: next }),
+      });
+      onRefresh();
+    },
+    [onRefresh],
+  );
+
+  return (
+    <div className="w-56 border-l border-console-border flex flex-col shrink-0">
+      {/* Header + create */}
+      <div className="p-3 border-b border-console-border shrink-0">
+        <div className="text-xs font-semibold text-console-text mb-2">Groups</div>
+        <div className="flex gap-1">
+          <input
+            className="flex-1 bg-console-bg border border-console-border rounded px-2 py-1 text-xs text-console-text placeholder-console-dim focus:outline-none focus:border-console-active"
+            placeholder="Group name…"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void createGroup();
+            }}
+          />
+          <button
+            className="px-2 py-1 text-xs rounded bg-console-active text-white hover:bg-blue-600 disabled:opacity-50"
+            onClick={() => void createGroup()}
+            disabled={creating || !newLabel.trim()}
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* Group list */}
+      <div className="flex flex-col overflow-hidden flex-1">
+        <div className="overflow-y-auto shrink-0 max-h-36">
+          {groups.length === 0 && <p className="text-console-dim text-xs p-3">No groups yet.</p>}
+          {groups.map((g) => (
+            <div key={g.id} className="flex items-center group border-b border-console-border">
+              <button
+                className={[
+                  'flex-1 text-left px-3 py-1.5 text-xs transition-colors',
+                  selectedGroupId === g.id
+                    ? 'bg-console-active/20 text-console-text'
+                    : 'text-console-dim hover:bg-console-muted hover:text-console-text',
+                ].join(' ')}
+                onClick={() => setSelectedGroupId(g.id === selectedGroupId ? null : g.id)}
+              >
+                <span className="font-medium">{g.label}</span>
+                <span className="ml-1 text-[10px] opacity-60">({g.fixtureIds.length})</span>
+              </button>
+              <button
+                className="opacity-0 group-hover:opacity-100 px-2 text-console-danger hover:text-red-400 text-xs"
+                onClick={() => void deleteGroup(g.id)}
+                title="Delete group"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Fixture assignment for selected group */}
+        {selectedGroup && (
+          <div className="flex-1 overflow-y-auto border-t border-console-border">
+            <div className="px-3 py-1.5 bg-console-panel/50 border-b border-console-border">
+              <span className="text-[10px] text-console-dim uppercase tracking-wider">
+                Fixtures in {selectedGroup.label}
+              </span>
+            </div>
+            {fixtures.length === 0 ? (
+              <p className="text-console-dim text-xs p-3">No fixtures patched.</p>
+            ) : (
+              fixtures.map((f) => {
+                const inGroup = selectedGroup.fixtureIds.includes(f.id);
+                return (
+                  <button
+                    key={f.id}
+                    className={[
+                      'w-full text-left px-3 py-1.5 border-b border-console-border text-xs flex items-center gap-2 transition-colors',
+                      inGroup
+                        ? 'bg-console-active/10 text-console-text'
+                        : 'text-console-dim hover:bg-console-muted hover:text-console-text',
+                    ].join(' ')}
+                    onClick={() =>
+                      void toggleFixtureInGroup(selectedGroup.id, f.id, selectedGroup.fixtureIds)
+                    }
+                  >
+                    <span
+                      className={[
+                        'w-3 h-3 rounded-sm border shrink-0',
+                        inGroup
+                          ? 'bg-console-active border-console-active'
+                          : 'border-console-border',
+                      ].join(' ')}
+                    />
+                    <span className="truncate">{f.label}</span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

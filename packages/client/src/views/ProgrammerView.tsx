@@ -720,6 +720,27 @@ export function ProgrammerView() {
 
       {/* Bottom: fixture selector */}
       <div className="border-t border-console-border shrink-0">
+        {/* Group quick-select buttons */}
+        {(show?.fixtureGroups ?? []).length > 0 && (
+          <div className="flex items-center gap-1 px-2 pt-1.5 pb-1 border-b border-console-border flex-wrap">
+            <span className="text-[10px] text-console-dim uppercase tracking-wider mr-1">
+              Groups:
+            </span>
+            {(show?.fixtureGroups ?? []).map((g) => (
+              <button
+                key={g.id}
+                className="px-2 py-0.5 text-xs rounded border border-console-border text-console-dim hover:text-console-text hover:border-console-active/50 transition-colors"
+                onClick={() => {
+                  for (const id of g.fixtureIds) selectFixture(id, 'toggle');
+                }}
+                title={`Select all in ${g.label}`}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center justify-between px-2 pt-1">
           <span className="text-xs text-console-dim font-semibold">Fixture Selection</span>
           {selectedIds.length > 0 && (

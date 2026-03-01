@@ -1,4 +1,12 @@
-import type { KeyBinding } from '../types/index.js';
+import type { KeyBinding, PlaybackMaster } from '../types/index.js';
+
+export const DEFAULT_PLAYBACK_MASTERS: PlaybackMaster[] = Array.from({ length: 10 }, (_, i) => ({
+  id: `master_${i}`,
+  label: `M${i + 1}`,
+  assignedId: null,
+  assignedType: null,
+  level: 100,
+}));
 
 export const DEFAULT_KEY_BINDINGS: KeyBinding[] = [
   // ── Global ──────────────────────────────────────────────────────────────────

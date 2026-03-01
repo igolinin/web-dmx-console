@@ -115,15 +115,12 @@ export function useKeyboardShortcuts({
           const masterMatch = /^playback\.master\.(\d)$/.exec(actionId);
           if (masterMatch) {
             const masterIdx = parseInt(masterMatch[1]!, 10) - 1;
-            const masterId = show?.settings.playbackMasters[masterIdx];
-            if (masterId) {
-              // Try cue list go first, then chase play
-              const isCueList = show?.cueLists.some((c) => c.id === masterId) ?? false;
-              if (isCueList) {
-                void fetch(`/api/cueLists/${masterId}/go`, { method: 'POST' });
-              } else {
-                // Chase: toggle play/stop
-                void fetch(`/api/chases/${masterId}/play`, { method: 'POST' });
+            const master = show?.settings.playbackMasters[masterIdx];
+            if (master?.assignedId) {
+              if (master.assignedType === 'cueList') {
+                void fetch(`/api/cueLists/${master.assignedId}/go`, { method: 'POST' });
+              } else if (master.assignedType === 'chase') {
+                void fetch(`/api/chases/${master.assignedId}/play`, { method: 'POST' });
               }
             }
           }
@@ -145,10 +142,11 @@ export function useKeyboardShortcuts({
         flashedKeyRef.current = ke.key;
         const fixtures = show?.fixtures ?? [];
         const masterIdx = parseInt(flashMatch[1]!, 10) - 1;
-        const masterId = show?.settings.playbackMasters[masterIdx];
+        const master = show?.settings.playbackMasters[masterIdx];
+        const masterId = master?.assignedId ?? null;
         if (masterId) {
           const masterFixtures = fixtures.filter((f) =>
-            show?.chases.find((c) => c.id === masterId)
+            master?.assignedType === 'chase'
               ? true // for chases, flash all fixtures
               : (show?.cueLists
                   .find((cl) => cl.id === masterId)

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import type { KeyBinding } from '@dmx-console/shared';
+import type { KeyBinding, PlaybackMaster } from '@dmx-console/shared';
 import { show, touchShow } from '../store/show.js';
 import { saveShow, loadShowFromDisk } from '../store/persist.js';
 
@@ -34,6 +34,14 @@ const KeyBindingSchema = z.object({
   actionId: z.string(),
 });
 
+const PlaybackMasterSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  assignedId: z.string().nullable(),
+  assignedType: z.enum(['cueList', 'chase']).nullable(),
+  level: z.number().min(0).max(100),
+});
+
 /** PATCH /api/show/settings — update show settings (keyBindings, playbackMasters, etc.) */
 showFileRouter.patch('/settings', (req, res) => {
   const parsed = z
@@ -41,7 +49,7 @@ showFileRouter.patch('/settings', (req, res) => {
       keyBindings: z.array(KeyBindingSchema).optional(),
       activeCueListId: z.string().optional(),
       activeChaseId: z.string().optional(),
-      playbackMasters: z.array(z.string()).optional(),
+      playbackMasters: z.array(PlaybackMasterSchema).optional(),
     })
     .safeParse(req.body);
 
@@ -54,7 +62,8 @@ showFileRouter.patch('/settings', (req, res) => {
   if (d.keyBindings !== undefined) show.settings.keyBindings = d.keyBindings as KeyBinding[];
   if (d.activeCueListId !== undefined) show.settings.activeCueListId = d.activeCueListId;
   if (d.activeChaseId !== undefined) show.settings.activeChaseId = d.activeChaseId;
-  if (d.playbackMasters !== undefined) show.settings.playbackMasters = d.playbackMasters;
+  if (d.playbackMasters !== undefined)
+    show.settings.playbackMasters = d.playbackMasters as PlaybackMaster[];
 
   touchShow();
   res.json(show.settings);

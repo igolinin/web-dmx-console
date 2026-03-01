@@ -185,11 +185,19 @@ export interface KeyBinding {
   actionId: string; // e.g. 'cue.go', 'programmer.clear'
 }
 
+export interface PlaybackMaster {
+  id: string; // 'master_0' … 'master_9'
+  label: string; // user-editable label shown on the strip
+  assignedId: string | null; // cueList or chase ID, null = unassigned
+  assignedType: 'cueList' | 'chase' | null;
+  level: number; // 0–100 fader position
+}
+
 export interface ShowSettings {
   keyBindings: KeyBinding[];
   activeCueListId?: string; // Space/Enter → go on this cue list
   activeChaseId?: string; // T → tap on this chase
-  playbackMasters: string[]; // F1–F8 → cue list or chase IDs (index 0–7)
+  playbackMasters: PlaybackMaster[]; // 10 master fader strips
 }
 
 // ── Show ──────────────────────────────────────────────────────────────────

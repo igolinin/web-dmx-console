@@ -1,5 +1,5 @@
 import type { Show } from '@dmx-console/shared';
-import { DEFAULT_KEY_BINDINGS } from '@dmx-console/shared';
+import { DEFAULT_KEY_BINDINGS, DEFAULT_PLAYBACK_MASTERS } from '@dmx-console/shared';
 
 export const show: Show = {
   version: '1',
@@ -16,7 +16,7 @@ export const show: Show = {
   shapes: [],
   settings: {
     keyBindings: DEFAULT_KEY_BINDINGS,
-    playbackMasters: [],
+    playbackMasters: DEFAULT_PLAYBACK_MASTERS.map((m) => ({ ...m })),
   },
   artnet: {
     host: '255.255.255.255',
