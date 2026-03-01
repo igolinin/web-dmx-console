@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { FixtureDef, PatchedFixture } from '@dmx-console/shared';
 import { useShowStore } from '../store/useShow.js';
 import { useProgrammer } from '../store/useProgrammer.js';
@@ -70,6 +70,70 @@ function hasBeam(def: FixtureDef): boolean {
   );
 }
 
+/** Average a numeric value across fixtures that have a given channel group. */
+function avgGroupValue(
+  fixtures: PatchedFixture[],
+  defs: Record<string, FixtureDef>,
+  values: Record<string, Record<string, number>>,
+  group: string,
+): number {
+  let sum = 0;
+  let count = 0;
+  for (const f of fixtures) {
+    const def = defs[f.defId];
+    if (!def) continue;
+    const ch = Object.values(def.channels).find((c) => c.group === group && c.byte !== 1);
+    if (!ch) continue;
+    sum += values[f.id]?.[ch.name] ?? 0;
+    count++;
+  }
+  return count > 0 ? Math.round(sum / count) : 0;
+}
+
+/** Set a channel-group value on every fixture in the list. */
+function applyGroupToAll(
+  group: string,
+  newValue: number,
+  fixtures: PatchedFixture[],
+  defs: Record<string, FixtureDef>,
+  onSetChannels: (fixtureId: string, channels: Record<string, number>) => void,
+): void {
+  for (const f of fixtures) {
+    const def = defs[f.defId];
+    if (!def) continue;
+    const ch: Record<string, number> = {};
+    for (const c of Object.values(def.channels)) {
+      if (c.group === group) ch[c.name] = newValue;
+    }
+    if (Object.keys(ch).length > 0) onSetChannels(f.id, ch);
+  }
+}
+
+// ── Section divider shown between master and individual controls ───────────
+
+function IndividualDivider({
+  count,
+  open,
+  onToggle,
+}: {
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      className="flex items-center gap-2 mt-4 mb-2 text-xs text-console-dim hover:text-console-text w-full text-left"
+      onClick={onToggle}
+    >
+      <span className="flex-1 border-t border-console-border" />
+      <span>
+        {open ? '▲' : '▼'} Individual ({count})
+      </span>
+      <span className="flex-1 border-t border-console-border" />
+    </button>
+  );
+}
+
 // ── Attribute panels ───────────────────────────────────────────────────────
 
 function IntensityPanel({
@@ -83,6 +147,7 @@ function IntensityPanel({
   values: Record<string, Record<string, number>>;
   onSetChannels: (fixtureId: string, channels: Record<string, number>) => void;
 }) {
+  const [showIndividual, setShowIndividual] = useState(true);
   const intensityFixtures = fixtures.filter((f) => {
     const def = defs[f.defId];
     return def && hasGroup(def, 'Intensity');
@@ -92,27 +157,61 @@ function IntensityPanel({
     return <p className="text-console-dim text-xs">No intensity channels in selected fixtures.</p>;
   }
 
+  const masterValue = avgGroupValue(intensityFixtures, defs, values, 'Intensity');
+  const multi = intensityFixtures.length > 1;
+
   return (
-    <div className="flex gap-4 flex-wrap">
-      {intensityFixtures.map((f) => {
-        const def = defs[f.defId]!;
-        const dimmerChannels = Object.values(def.channels).filter((ch) => ch.group === 'Intensity');
-        const faders = dimmerChannels.map((ch) => ({
-          label: ch.name,
-          channelName: ch.name,
-          value: values[f.id]?.[ch.name] ?? 0,
-        }));
-        return (
-          <div key={f.id} className="flex flex-col items-center gap-1">
-            <div className="text-xs text-console-dim mb-1">{f.label}</div>
-            <FaderBank
-              faders={faders}
-              showPercent
-              onChange={(channelName, value) => onSetChannels(f.id, { [channelName]: value })}
-            />
-          </div>
-        );
-      })}
+    <div>
+      {/* Master fader */}
+      <FaderBank
+        faders={[
+          {
+            label: multi ? `Dimmer — ${intensityFixtures.length} fixtures` : 'Dimmer',
+            channelName: '__master',
+            value: masterValue,
+          },
+        ]}
+        showPercent
+        onChange={(_, v) => applyGroupToAll('Intensity', v, intensityFixtures, defs, onSetChannels)}
+      />
+
+      {/* Per-fixture controls */}
+      {multi && (
+        <>
+          <IndividualDivider
+            count={intensityFixtures.length}
+            open={showIndividual}
+            onToggle={() => setShowIndividual((v) => !v)}
+          />
+          {showIndividual && (
+            <div className="flex gap-4 flex-wrap">
+              {intensityFixtures.map((f) => {
+                const def = defs[f.defId]!;
+                const dimmerChannels = Object.values(def.channels).filter(
+                  (ch) => ch.group === 'Intensity',
+                );
+                const faders = dimmerChannels.map((ch) => ({
+                  label: ch.name,
+                  channelName: ch.name,
+                  value: values[f.id]?.[ch.name] ?? 0,
+                }));
+                return (
+                  <div key={f.id} className="flex flex-col items-center gap-1">
+                    <div className="text-xs text-console-dim mb-1">{f.label}</div>
+                    <FaderBank
+                      faders={faders}
+                      showPercent
+                      onChange={(channelName, value) =>
+                        onSetChannels(f.id, { [channelName]: value })
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -128,44 +227,86 @@ function PositionPanel({
   values: Record<string, Record<string, number>>;
   onSetChannels: (fixtureId: string, channels: Record<string, number>) => void;
 }) {
+  const [showIndividual, setShowIndividual] = useState(true);
   const movers = fixtures.filter((f) => {
     const def = defs[f.defId];
     return def && hasPan(def);
   });
 
+  const handleMasterPosition = useCallback(
+    (newPan: number, newTilt: number) => {
+      for (const f of movers) {
+        const def = defs[f.defId]!;
+        const panCh = Object.values(def.channels).find((c) => c.group === 'Pan' && c.byte !== 1);
+        const tiltCh = Object.values(def.channels).find((c) => c.group === 'Tilt' && c.byte !== 1);
+        const ch: Record<string, number> = {};
+        if (panCh) ch[panCh.name] = newPan;
+        if (tiltCh) ch[tiltCh.name] = newTilt;
+        if (Object.keys(ch).length > 0) onSetChannels(f.id, ch);
+      }
+    },
+    [movers, defs, onSetChannels],
+  );
+
   if (movers.length === 0) {
     return <p className="text-console-dim text-xs">No pan/tilt channels in selected fixtures.</p>;
   }
 
+  const masterPan = avgGroupValue(movers, defs, values, 'Pan');
+  const masterTilt = avgGroupValue(movers, defs, values, 'Tilt');
+  const multi = movers.length > 1;
+
   return (
-    <div className="flex gap-4 flex-wrap">
-      {movers.map((f) => {
-        const def = defs[f.defId]!;
-        const panCh = Object.values(def.channels).find((ch) => ch.group === 'Pan' && ch.byte !== 1);
-        const tiltCh = Object.values(def.channels).find(
-          (ch) => ch.group === 'Tilt' && ch.byte !== 1,
-        );
+    <div>
+      {/* Master XY pad */}
+      <div className="flex flex-col items-center gap-1">
+        {multi && (
+          <div className="text-xs text-console-dim mb-1">Pan / Tilt — {movers.length} fixtures</div>
+        )}
+        <XYPad pan={masterPan} tilt={masterTilt} size={180} onChange={handleMasterPosition} />
+      </div>
 
-        const pan = panCh ? (values[f.id]?.[panCh.name] ?? 128) : 128;
-        const tilt = tiltCh ? (values[f.id]?.[tiltCh.name] ?? 128) : 128;
-
-        return (
-          <div key={f.id} className="flex flex-col items-center gap-1">
-            <div className="text-xs text-console-dim mb-1">{f.label}</div>
-            <XYPad
-              pan={pan}
-              tilt={tilt}
-              size={160}
-              onChange={(newPan, newTilt) => {
-                const ch: Record<string, number> = {};
-                if (panCh) ch[panCh.name] = newPan;
-                if (tiltCh) ch[tiltCh.name] = newTilt;
-                onSetChannels(f.id, ch);
-              }}
-            />
-          </div>
-        );
-      })}
+      {/* Per-fixture controls */}
+      {multi && (
+        <>
+          <IndividualDivider
+            count={movers.length}
+            open={showIndividual}
+            onToggle={() => setShowIndividual((v) => !v)}
+          />
+          {showIndividual && (
+            <div className="flex gap-4 flex-wrap">
+              {movers.map((f) => {
+                const def = defs[f.defId]!;
+                const panCh = Object.values(def.channels).find(
+                  (ch) => ch.group === 'Pan' && ch.byte !== 1,
+                );
+                const tiltCh = Object.values(def.channels).find(
+                  (ch) => ch.group === 'Tilt' && ch.byte !== 1,
+                );
+                const pan = panCh ? (values[f.id]?.[panCh.name] ?? 128) : 128;
+                const tilt = tiltCh ? (values[f.id]?.[tiltCh.name] ?? 128) : 128;
+                return (
+                  <div key={f.id} className="flex flex-col items-center gap-1">
+                    <div className="text-xs text-console-dim mb-1">{f.label}</div>
+                    <XYPad
+                      pan={pan}
+                      tilt={tilt}
+                      size={120}
+                      onChange={(newPan, newTilt) => {
+                        const ch: Record<string, number> = {};
+                        if (panCh) ch[panCh.name] = newPan;
+                        if (tiltCh) ch[tiltCh.name] = newTilt;
+                        onSetChannels(f.id, ch);
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -181,63 +322,150 @@ function ColourPanel({
   values: Record<string, Record<string, number>>;
   onSetChannels: (fixtureId: string, channels: Record<string, number>) => void;
 }) {
+  const [showIndividual, setShowIndividual] = useState(true);
   const colourFixtures = fixtures.filter((f) => {
     const def = defs[f.defId];
     return def && hasColour(def);
   });
 
-  if (colourFixtures.length === 0) {
-    return <p className="text-console-dim text-xs">No colour channels in selected fixtures.</p>;
-  }
+  // Master colour: average across all selected colour fixtures
+  const masterColour = useMemo(() => {
+    const colour = { red: 0, green: 0, blue: 0, white: 0, amber: 0 };
+    let count = 0;
+    let hasW = false;
+    let hasA = false;
+    for (const f of colourFixtures) {
+      const def = defs[f.defId]!;
+      const fv = values[f.id] ?? {};
+      const getColourCh = (c: string) => Object.values(def.channels).find((ch) => ch.colour === c);
+      const rCh = getColourCh('Red');
+      const gCh = getColourCh('Green');
+      const bCh = getColourCh('Blue');
+      const wCh = getColourCh('White');
+      const aCh = getColourCh('Amber');
+      if (wCh) hasW = true;
+      if (aCh) hasA = true;
+      colour.red += rCh ? (fv[rCh.name] ?? 0) : 0;
+      colour.green += gCh ? (fv[gCh.name] ?? 0) : 0;
+      colour.blue += bCh ? (fv[bCh.name] ?? 0) : 0;
+      colour.white += wCh ? (fv[wCh.name] ?? 0) : 0;
+      colour.amber += aCh ? (fv[aCh.name] ?? 0) : 0;
+      count++;
+    }
+    if (count === 0) return { ...colour, hasWhite: false, hasAmber: false };
+    return {
+      red: Math.round(colour.red / count),
+      green: Math.round(colour.green / count),
+      blue: Math.round(colour.blue / count),
+      white: Math.round(colour.white / count),
+      amber: Math.round(colour.amber / count),
+      hasWhite: hasW,
+      hasAmber: hasA,
+    };
+  }, [colourFixtures, defs, values]);
 
-  return (
-    <div className="flex gap-6 flex-wrap">
-      {colourFixtures.map((f) => {
+  const handleMasterColour = useCallback(
+    (channels: Partial<Record<'Red' | 'Green' | 'Blue' | 'White' | 'Amber', number>>) => {
+      for (const f of colourFixtures) {
         const def = defs[f.defId]!;
-        const fv = values[f.id] ?? {};
-
-        const getColourCh = (colour: string) =>
-          Object.values(def.channels).find((ch) => ch.colour === colour);
-
+        const ch: Record<string, number> = {};
+        const getColourCh = (c: string) => Object.values(def.channels).find((d) => d.colour === c);
         const rCh = getColourCh('Red');
         const gCh = getColourCh('Green');
         const bCh = getColourCh('Blue');
         const wCh = getColourCh('White');
         const aCh = getColourCh('Amber');
+        if (channels.Red !== undefined && rCh) ch[rCh.name] = channels.Red;
+        if (channels.Green !== undefined && gCh) ch[gCh.name] = channels.Green;
+        if (channels.Blue !== undefined && bCh) ch[bCh.name] = channels.Blue;
+        if (channels.White !== undefined && wCh) ch[wCh.name] = channels.White;
+        if (channels.Amber !== undefined && aCh) ch[aCh.name] = channels.Amber;
+        if (Object.keys(ch).length > 0) onSetChannels(f.id, ch);
+      }
+    },
+    [colourFixtures, defs, onSetChannels],
+  );
 
-        const red = rCh ? (fv[rCh.name] ?? 0) : 0;
-        const green = gCh ? (fv[gCh.name] ?? 0) : 0;
-        const blue = bCh ? (fv[bCh.name] ?? 0) : 0;
-        const white = wCh ? (fv[wCh.name] ?? 0) : 0;
-        const amber = aCh ? (fv[aCh.name] ?? 0) : 0;
+  if (colourFixtures.length === 0) {
+    return <p className="text-console-dim text-xs">No colour channels in selected fixtures.</p>;
+  }
 
-        return (
-          <div key={f.id} className="flex flex-col gap-1">
-            <div className="text-xs text-console-dim mb-1">{f.label}</div>
-            <ColorPicker
-              red={red}
-              green={green}
-              blue={blue}
-              white={white}
-              amber={amber}
-              hasWhite={!!wCh}
-              hasAmber={!!aCh}
-              onChange={(channels) => {
-                const ch: Record<string, number> = {};
-                if (channels.Red !== undefined && rCh) ch[rCh.name] = channels.Red;
-                if (channels.Green !== undefined && gCh) ch[gCh.name] = channels.Green;
-                if (channels.Blue !== undefined && bCh) ch[bCh.name] = channels.Blue;
-                if (channels.White !== undefined && wCh) ch[wCh.name] = channels.White;
-                if (channels.Amber !== undefined && aCh) ch[aCh.name] = channels.Amber;
-                onSetChannels(f.id, ch);
-              }}
-            />
+  const multi = colourFixtures.length > 1;
+
+  return (
+    <div>
+      {/* Master colour picker */}
+      <div className="flex flex-col gap-1">
+        {multi && (
+          <div className="text-xs text-console-dim mb-1">
+            Colour — {colourFixtures.length} fixtures
           </div>
-        );
-      })}
+        )}
+        <ColorPicker
+          red={masterColour.red}
+          green={masterColour.green}
+          blue={masterColour.blue}
+          white={masterColour.white}
+          amber={masterColour.amber}
+          hasWhite={masterColour.hasWhite}
+          hasAmber={masterColour.hasAmber}
+          onChange={handleMasterColour}
+        />
+      </div>
+
+      {/* Per-fixture controls */}
+      {multi && (
+        <>
+          <IndividualDivider
+            count={colourFixtures.length}
+            open={showIndividual}
+            onToggle={() => setShowIndividual((v) => !v)}
+          />
+          {showIndividual && (
+            <div className="flex gap-6 flex-wrap">
+              {colourFixtures.map((f) => {
+                const def = defs[f.defId]!;
+                const fv = values[f.id] ?? {};
+                const getColourCh = (colour: string) =>
+                  Object.values(def.channels).find((ch) => ch.colour === colour);
+                const rCh = getColourCh('Red');
+                const gCh = getColourCh('Green');
+                const bCh = getColourCh('Blue');
+                const wCh = getColourCh('White');
+                const aCh = getColourCh('Amber');
+                return (
+                  <div key={f.id} className="flex flex-col gap-1">
+                    <div className="text-xs text-console-dim mb-1">{f.label}</div>
+                    <ColorPicker
+                      red={rCh ? (fv[rCh.name] ?? 0) : 0}
+                      green={gCh ? (fv[gCh.name] ?? 0) : 0}
+                      blue={bCh ? (fv[bCh.name] ?? 0) : 0}
+                      white={wCh ? (fv[wCh.name] ?? 0) : 0}
+                      amber={aCh ? (fv[aCh.name] ?? 0) : 0}
+                      hasWhite={!!wCh}
+                      hasAmber={!!aCh}
+                      onChange={(channels) => {
+                        const ch: Record<string, number> = {};
+                        if (channels.Red !== undefined && rCh) ch[rCh.name] = channels.Red;
+                        if (channels.Green !== undefined && gCh) ch[gCh.name] = channels.Green;
+                        if (channels.Blue !== undefined && bCh) ch[bCh.name] = channels.Blue;
+                        if (channels.White !== undefined && wCh) ch[wCh.name] = channels.White;
+                        if (channels.Amber !== undefined && aCh) ch[aCh.name] = channels.Amber;
+                        onSetChannels(f.id, ch);
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
+
+const BEAM_GROUPS = ['Shutter', 'Gobo', 'Prism', 'Beam'] as const;
 
 function BeamPanel({
   fixtures,
@@ -250,6 +478,7 @@ function BeamPanel({
   values: Record<string, Record<string, number>>;
   onSetChannels: (fixtureId: string, channels: Record<string, number>) => void;
 }) {
+  const [showIndividual, setShowIndividual] = useState(true);
   const beamFixtures = fixtures.filter((f) => {
     const def = defs[f.defId];
     return def && hasBeam(def);
@@ -259,29 +488,68 @@ function BeamPanel({
     return <p className="text-console-dim text-xs">No beam channels in selected fixtures.</p>;
   }
 
+  const multi = beamFixtures.length > 1;
+
+  // Which beam groups actually exist across selected fixtures?
+  const activeGroups = BEAM_GROUPS.filter((group) =>
+    beamFixtures.some((f) =>
+      Object.values(defs[f.defId]!.channels).some((ch) => ch.group === group),
+    ),
+  );
+
+  const masterFaders = activeGroups.map((group) => ({
+    label: multi ? `${group} (${beamFixtures.length})` : group,
+    channelName: group,
+    value: avgGroupValue(beamFixtures, defs, values, group),
+  }));
+
   return (
-    <div className="flex gap-4 flex-wrap">
-      {beamFixtures.map((f) => {
-        const def = defs[f.defId]!;
-        const beamChannels = Object.values(def.channels).filter((ch) =>
-          ['Gobo', 'Prism', 'Beam', 'Shutter'].includes(ch.group),
-        );
-        const fv = values[f.id] ?? {};
-        const faders = beamChannels.map((ch) => ({
-          label: ch.name,
-          channelName: ch.name,
-          value: fv[ch.name] ?? 0,
-        }));
-        return (
-          <div key={f.id} className="flex flex-col items-center gap-1">
-            <div className="text-xs text-console-dim mb-1">{f.label}</div>
-            <FaderBank
-              faders={faders}
-              onChange={(channelName, value) => onSetChannels(f.id, { [channelName]: value })}
-            />
-          </div>
-        );
-      })}
+    <div>
+      {/* Master beam faders (one per active beam group) */}
+      <FaderBank
+        faders={masterFaders}
+        onChange={(groupName, value) =>
+          applyGroupToAll(groupName, value, beamFixtures, defs, onSetChannels)
+        }
+      />
+
+      {/* Per-fixture controls */}
+      {multi && (
+        <>
+          <IndividualDivider
+            count={beamFixtures.length}
+            open={showIndividual}
+            onToggle={() => setShowIndividual((v) => !v)}
+          />
+          {showIndividual && (
+            <div className="flex gap-4 flex-wrap">
+              {beamFixtures.map((f) => {
+                const def = defs[f.defId]!;
+                const beamChannels = Object.values(def.channels).filter((ch) =>
+                  ['Gobo', 'Prism', 'Beam', 'Shutter'].includes(ch.group),
+                );
+                const fv = values[f.id] ?? {};
+                const faders = beamChannels.map((ch) => ({
+                  label: ch.name,
+                  channelName: ch.name,
+                  value: fv[ch.name] ?? 0,
+                }));
+                return (
+                  <div key={f.id} className="flex flex-col items-center gap-1">
+                    <div className="text-xs text-console-dim mb-1">{f.label}</div>
+                    <FaderBank
+                      faders={faders}
+                      onChange={(channelName, value) =>
+                        onSetChannels(f.id, { [channelName]: value })
+                      }
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -354,9 +622,6 @@ export function ProgrammerView() {
     clear,
   } = useProgrammer();
 
-  // Build def map from show (fixtures carry defId; we need defMap from library)
-  // The library is loaded separately in PatchView; here we re-fetch or use cached.
-  // For simplicity, store defMap in show store (it holds the full fixture list).
   const defMap = useShowStore((s) => s.defMap);
 
   const selectedFixtures = fixtures.filter((f) => selectedIds.includes(f.id));
@@ -441,7 +706,12 @@ export function ProgrammerView() {
         {/* Attribute panel */}
         <div className="flex-1 overflow-auto p-3">
           {selectedIds.length === 0 ? (
-            <p className="text-console-dim text-sm">Select fixtures below to control them.</p>
+            <p className="text-console-dim text-sm">
+              Select fixtures below to control them.{' '}
+              <span className="text-console-dim/60">
+                Ctrl+click to add, Shift+click for a range.
+              </span>
+            </p>
           ) : (
             renderPanel()
           )}
