@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readdir, readFile, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FixtureDef } from '@dmx-console/shared';
@@ -14,6 +14,16 @@ export async function saveUserFixture(def: FixtureDef): Promise<void> {
   await mkdir(USER_FIXTURES_DIR, { recursive: true });
   const path = join(USER_FIXTURES_DIR, `${def.id}.json`);
   await writeFile(path, JSON.stringify(def, null, 2), 'utf-8');
+}
+
+/** Delete fixtures/user/<id>.json. Returns false if no such user fixture exists. */
+export async function deleteUserFixture(id: string): Promise<boolean> {
+  try {
+    await unlink(join(USER_FIXTURES_DIR, `${id}.json`));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Load all persisted user fixtures. Returns [] if the directory is absent. */

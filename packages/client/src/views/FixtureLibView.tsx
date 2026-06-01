@@ -1,22 +1,39 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { FixtureDef } from '@dmx-console/shared';
 import { FixtureGenModal } from '../components/FixtureGenModal.js';
+import { FixtureEditor } from '../components/FixtureEditor.js';
+
+// null = not editing, 'new' = creating, FixtureDef = editing that fixture
+type EditState = null | 'new' | FixtureDef;
 
 export function FixtureLibView() {
   const [library, setLibrary] = useState<FixtureDef[]>([]);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [genOpen, setGenOpen] = useState(false);
+  const [editing, setEditing] = useState<EditState>(null);
 
-  const loadLibrary = useCallback(() => {
-    void fetch('/api/fixtures')
-      .then((r) => r.json() as Promise<FixtureDef[]>)
-      .then(setLibrary);
-  }, []);
+  const loadLibrary = useCallback(
+    (selectId?: string) =>
+      fetch('/api/fixtures')
+        .then((r) => r.json() as Promise<FixtureDef[]>)
+        .then((libs) => {
+          setLibrary(libs);
+          if (selectId) setSelectedId(selectId);
+        }),
+    [],
+  );
 
   useEffect(() => {
-    loadLibrary();
+    void loadLibrary();
   }, [loadLibrary]);
+
+  const handleDelete = (def: FixtureDef) => {
+    if (!window.confirm(`Delete custom profile "${def.model}"?`)) return;
+    void fetch(`/api/fixtures/${encodeURIComponent(def.id)}`, { method: 'DELETE' })
+      .then(() => loadLibrary())
+      .then(() => setSelectedId(null));
+  };
 
   const filtered = library.filter(
     (d) =>
@@ -30,7 +47,14 @@ export function FixtureLibView() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {genOpen && <FixtureGenModal onClose={() => setGenOpen(false)} onSaved={loadLibrary} />}
+      {genOpen && (
+        <FixtureGenModal
+          onClose={() => setGenOpen(false)}
+          onSaved={() => {
+            void loadLibrary();
+          }}
+        />
+      )}
       {/* List */}
       <div className="w-80 border-r border-console-border flex flex-col shrink-0">
         <div className="p-3 border-b border-console-border">
@@ -38,13 +62,25 @@ export function FixtureLibView() {
             <div className="text-sm font-semibold text-console-text">
               Fixture Library ({library.length})
             </div>
-            <button
-              className="px-2 py-1 text-xs rounded bg-console-active text-white hover:opacity-90"
-              onClick={() => setGenOpen(true)}
-              title="Create a fixture from a PDF manual using AI"
-            >
-              ✨ AI
-            </button>
+            <div className="flex gap-1">
+              <button
+                className="px-2 py-1 text-xs rounded border border-console-border text-console-dim hover:text-console-text"
+                onClick={() => {
+                  setSelectedId(null);
+                  setEditing('new');
+                }}
+                title="Create a custom fixture profile"
+              >
+                + New
+              </button>
+              <button
+                className="px-2 py-1 text-xs rounded bg-console-active text-white hover:opacity-90"
+                onClick={() => setGenOpen(true)}
+                title="Create a fixture from a PDF manual using AI"
+              >
+                ✨ AI
+              </button>
+            </div>
           </div>
           <input
             className="w-full bg-console-bg border border-console-border rounded px-2 py-1 text-sm text-console-text placeholder-console-dim focus:outline-none focus:border-console-active"
@@ -78,17 +114,46 @@ export function FixtureLibView() {
         </div>
       </div>
 
-      {/* Detail */}
+      {/* Detail / Editor */}
       <div className="flex-1 overflow-y-auto p-4">
-        {selected ? (
+        {editing !== null ? (
+          <FixtureEditor
+            initial={editing === 'new' ? null : editing}
+            onCancel={() => setEditing(null)}
+            onSaved={(def) => {
+              setEditing(null);
+              void loadLibrary(def.id);
+            }}
+          />
+        ) : selected ? (
           <div className="max-w-2xl space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold text-console-text">{selected.model}</h2>
-              <div className="text-console-dim text-sm">
-                {selected.manufacturer} · {selected.type}
-                {selected.source && ` · source: ${selected.source}`}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-console-text">{selected.model}</h2>
+                <div className="text-console-dim text-sm">
+                  {selected.manufacturer} · {selected.type}
+                  {selected.source && ` · source: ${selected.source}`}
+                </div>
+                <div className="text-xs text-console-muted mt-1 font-mono">id: {selected.id}</div>
               </div>
-              <div className="text-xs text-console-muted mt-1 font-mono">id: {selected.id}</div>
+              <div className="flex gap-2 shrink-0">
+                <button
+                  className="px-2 py-1 text-xs rounded border border-console-border text-console-dim hover:text-console-text"
+                  onClick={() => setEditing(selected)}
+                  title="Edit this profile (saves a custom copy)"
+                >
+                  Edit
+                </button>
+                {selected.source === 'user' && (
+                  <button
+                    className="px-2 py-1 text-xs rounded border border-console-border text-console-dim hover:text-console-danger"
+                    onClick={() => handleDelete(selected)}
+                    title="Delete this custom profile"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
 
             {selected.physical && (

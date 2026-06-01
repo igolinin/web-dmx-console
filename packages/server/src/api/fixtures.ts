@@ -3,9 +3,14 @@ import { rateLimit } from 'express-rate-limit';
 import multer from 'multer';
 import { z } from 'zod';
 import type { FixtureType } from '@dmx-console/shared';
-import { addFixtureToLibrary, getFixtureDef, queryFixtures } from '../fixtures/loader.js';
+import {
+  addFixtureToLibrary,
+  getFixtureDef,
+  loadFixtureLibrary,
+  queryFixtures,
+} from '../fixtures/loader.js';
 import { extractPdfText } from '../fixtures/pdfText.js';
-import { saveUserFixture } from '../fixtures/userStore.js';
+import { deleteUserFixture, saveUserFixture } from '../fixtures/userStore.js';
 import { generateFixtureFromPdf } from '../llm/fixtureGen.js';
 import { FixtureDefSchema } from '../llm/fixtureSchema.js';
 import { slugify } from '../fixtures/parser.js';
@@ -108,6 +113,27 @@ fixturesRouter.post('/', (req, res) => {
     })
     .catch((err: unknown) => {
       res.status(500).json({ error: `Failed to save fixture: ${(err as Error).message}` });
+    });
+});
+
+/**
+ * DELETE /api/fixtures/:id — remove a user fixture. If the id shadowed a
+ * built-in or QLC+ definition, the library is rebuilt so the original is
+ * restored; otherwise the fixture is removed entirely.
+ */
+fixturesRouter.delete('/:id', (req, res) => {
+  const id = req.params.id ?? '';
+  deleteUserFixture(id)
+    .then(async (existed) => {
+      if (!existed) {
+        res.status(404).json({ error: 'No editable (user) fixture with that id' });
+        return;
+      }
+      await loadFixtureLibrary();
+      res.json({ ok: true, reverted: !!getFixtureDef(id) });
+    })
+    .catch((err: unknown) => {
+      res.status(500).json({ error: `Failed to delete fixture: ${(err as Error).message}` });
     });
 });
 

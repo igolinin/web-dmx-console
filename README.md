@@ -157,6 +157,10 @@ The console ships with 7 built-in fixture types and loads `.qxf` files from the 
 
 Drop additional [QLC+ fixture files](https://github.com/mcallegari/qlcplus/tree/master/resources/fixtures) into `fixtures/` and restart — they load automatically.
 
+### Custom & edited profiles
+
+In the **Library** view, **+ New** opens a profile editor to build a fixture by hand — set manufacturer/model/type, add channels (name + group + optional colour), and define one or more DMX modes, choosing and ordering each mode's channels. **Edit** does the same for any selected fixture; editing a built-in or QLC+ fixture saves a custom copy that overrides the original (same id). Custom profiles are stored in `fixtures/user/<id>.json`. **Delete** removes a custom profile — if it overrode a built-in/QLC+ fixture, the original is restored.
+
 ### AI fixture creation from a PDF manual
 
 In the **Library** view, click **✨ AI** to generate a fixture definition from a manufacturer's PDF user manual. The server extracts the manual text and asks an LLM to produce a fixture definition; if the manual documents several DMX modes (e.g. 8/11/16-channel), **all** are captured as modes on one fixture, and each mode keeps the original channel map from the manual in its description. You review the generated fixture and click **Save to library** — saved fixtures are written to `fixtures/user/<id>.json` and reload at startup.
