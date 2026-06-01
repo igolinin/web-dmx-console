@@ -15,9 +15,11 @@ interface ShowStore {
   setDmxTick: (tick: WsDmxTick) => void;
   applyStateUpdate: (update: WsStateUpdate) => void;
   setDefMap: (defs: FixtureDef[]) => void;
+  /** Re-fetch the fixture definition library from the server. */
+  refreshDefs: () => Promise<void>;
 }
 
-export const useShowStore = create<ShowStore>((set) => ({
+export const useShowStore = create<ShowStore>((set, get) => ({
   show: null,
   dmxOutput: {},
   connected: false,
@@ -38,6 +40,9 @@ export const useShowStore = create<ShowStore>((set) => ({
       .then((r) => r.json())
       .then((show: Show) => set({ show }))
       .catch(console.error);
+    // A state change may introduce a fixture whose def we haven't loaded yet
+    // (e.g. patching a just-created custom/AI fixture), so refresh the library.
+    void get().refreshDefs();
   },
 
   setDefMap: (defs) => {
@@ -45,6 +50,12 @@ export const useShowStore = create<ShowStore>((set) => ({
     for (const d of defs) map[d.id] = d;
     set({ defMap: map });
   },
+
+  refreshDefs: () =>
+    fetch('/api/fixtures')
+      .then((r) => r.json() as Promise<FixtureDef[]>)
+      .then((defs) => get().setDefMap(defs))
+      .catch(console.error),
 }));
 
 // Bootstrap: load initial state + fixture library

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { FixtureDef } from '@dmx-console/shared';
 import { FixtureGenModal } from '../components/FixtureGenModal.js';
 import { FixtureEditor } from '../components/FixtureEditor.js';
+import { useShowStore } from '../store/useShow.js';
 
 // null = not editing, 'new' = creating, FixtureDef = editing that fixture
 type EditState = null | 'new' | FixtureDef;
@@ -13,6 +14,8 @@ export function FixtureLibView() {
   const [genOpen, setGenOpen] = useState(false);
   const [editing, setEditing] = useState<EditState>(null);
 
+  const refreshDefs = useShowStore((s) => s.refreshDefs);
+
   const loadLibrary = useCallback(
     (selectId?: string) =>
       fetch('/api/fixtures')
@@ -20,8 +23,10 @@ export function FixtureLibView() {
         .then((libs) => {
           setLibrary(libs);
           if (selectId) setSelectedId(selectId);
+          // Keep the programmer/patch fixture-def map in sync with library edits.
+          void refreshDefs();
         }),
-    [],
+    [refreshDefs],
   );
 
   useEffect(() => {
