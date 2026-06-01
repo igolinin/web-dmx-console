@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { FixtureDef, FixtureType } from '@dmx-console/shared';
 import { BUILTIN_FIXTURES } from './builtins.js';
 import { parseQxf } from './parser.js';
+import { loadUserFixtures } from './userStore.js';
 
 const FIXTURES_DIR = resolve(fileURLToPath(import.meta.url), '../../../../../fixtures');
 
@@ -43,9 +44,20 @@ export async function loadFixtureLibrary(): Promise<void> {
     }
   }
 
+  // Load user/LLM-generated fixtures (JSON)
+  const userDefs = await loadUserFixtures();
+  for (const def of userDefs) {
+    library.set(def.id, def);
+  }
+
   console.log(
-    `[fixtures] loaded ${library.size} fixtures (${BUILTIN_FIXTURES.length} built-in, ${loaded} QLC+, ${failed} failed)`,
+    `[fixtures] loaded ${library.size} fixtures (${BUILTIN_FIXTURES.length} built-in, ${loaded} QLC+, ${userDefs.length} user, ${failed} failed)`,
   );
+}
+
+/** Add (or replace) a fixture in the in-memory library. */
+export function addFixtureToLibrary(def: FixtureDef): void {
+  library.set(def.id, def);
 }
 
 export function getFixtureLibrary(): FixtureDef[] {

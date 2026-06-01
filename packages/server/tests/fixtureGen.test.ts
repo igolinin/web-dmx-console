@@ -1,0 +1,112 @@
+import { describe, it, expect } from 'vitest';
+import { generateFixtureFromPdf } from '../src/llm/fixtureGen.js';
+import { LlmError, type LlmProvider } from '../src/llm/providers.js';
+
+/** Stub provider that returns a fixed response regardless of input. */
+function stubProvider(response: string): LlmProvider {
+  return { complete: () => Promise.resolve(response) };
+}
+
+const MULTI_MODE_JSON = JSON.stringify({
+  manufacturer: 'Acme Lighting',
+  model: 'Spot 250',
+  type: 'Moving Head',
+  channels: {
+    Pan: { name: 'Pan', group: 'Pan' },
+    Tilt: { name: 'Tilt', group: 'Tilt' },
+    Dimmer: { name: 'Dimmer', group: 'Intensity' },
+    Red: { name: 'Red', group: 'Colour', colour: 'Red' },
+  },
+  modes: [
+    {
+      name: '3 Channel',
+      channelNames: ['Pan', 'Tilt', 'Dimmer'],
+      description: '1: Pan\n2: Tilt\n3: Dimmer',
+    },
+    {
+      name: '4 Channel',
+      channelNames: ['Pan', 'Tilt', 'Dimmer', 'Red'],
+      description: '1: Pan\n2: Tilt\n3: Dimmer\n4: Red',
+    },
+  ],
+});
+
+describe('generateFixtureFromPdf', () => {
+  it('parses a multi-mode fixture and assigns id + source', async () => {
+    const def = await generateFixtureFromPdf({
+      text: 'some manual text',
+      provider: 'claude',
+      model: 'test',
+      llm: stubProvider(MULTI_MODE_JSON),
+    });
+
+    expect(def.id).toBe('acme_lighting_spot_250');
+    expect(def.source).toBe('llm');
+    expect(def.modes).toHaveLength(2);
+    // every mode keeps its original mapping description
+    expect(def.modes.every((m) => !!m.description)).toBe(true);
+    expect(def.modes[0]?.description).toContain('Pan');
+  });
+
+  it('tolerates surrounding prose / fences around the JSON', async () => {
+    const wrapped = '```json\n' + MULTI_MODE_JSON + '\n```';
+    const def = await generateFixtureFromPdf({
+      text: 'manual',
+      provider: 'openai',
+      model: 'test',
+      llm: stubProvider(wrapped),
+    });
+    expect(def.modes).toHaveLength(2);
+  });
+
+  it('rejects malformed JSON', async () => {
+    await expect(
+      generateFixtureFromPdf({
+        text: 'manual',
+        provider: 'deepseek',
+        model: 'test',
+        llm: stubProvider('not json at all'),
+      }),
+    ).rejects.toBeInstanceOf(LlmError);
+  });
+
+  it('rejects output with an out-of-enum channel group', async () => {
+    const bad = JSON.stringify({
+      manufacturer: 'X',
+      model: 'Y',
+      type: 'Dimmer',
+      channels: { Dim: { name: 'Dim', group: 'NotARealGroup' } },
+      modes: [{ name: '1ch', channelNames: ['Dim'] }],
+    });
+    await expect(
+      generateFixtureFromPdf({ text: 'm', provider: 'claude', model: 't', llm: stubProvider(bad) }),
+    ).rejects.toBeInstanceOf(LlmError);
+  });
+
+  it('rejects a mode referencing an unknown channel', async () => {
+    const bad = JSON.stringify({
+      manufacturer: 'X',
+      model: 'Y',
+      type: 'Dimmer',
+      channels: { Dim: { name: 'Dim', group: 'Intensity' } },
+      modes: [{ name: '2ch', channelNames: ['Dim', 'Ghost'] }],
+    });
+    await expect(
+      generateFixtureFromPdf({ text: 'm', provider: 'claude', model: 't', llm: stubProvider(bad) }),
+    ).rejects.toThrow(/unknown channel/);
+  });
+
+  it('rejects empty extracted text without calling the provider', async () => {
+    let called = false;
+    const spy: LlmProvider = {
+      complete: () => {
+        called = true;
+        return Promise.resolve('{}');
+      },
+    };
+    await expect(
+      generateFixtureFromPdf({ text: '   ', provider: 'claude', model: 't', llm: spy }),
+    ).rejects.toBeInstanceOf(LlmError);
+    expect(called).toBe(false);
+  });
+});

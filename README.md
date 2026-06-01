@@ -157,6 +157,27 @@ The console ships with 7 built-in fixture types and loads `.qxf` files from the 
 
 Drop additional [QLC+ fixture files](https://github.com/mcallegari/qlcplus/tree/master/resources/fixtures) into `fixtures/` and restart — they load automatically.
 
+### AI fixture creation from a PDF manual
+
+In the **Library** view, click **✨ AI** to generate a fixture definition from a manufacturer's PDF user manual. The server extracts the manual text and asks an LLM to produce a fixture definition; if the manual documents several DMX modes (e.g. 8/11/16-channel), **all** are captured as modes on one fixture, and each mode keeps the original channel map from the manual in its description. You review the generated fixture and click **Save to library** — saved fixtures are written to `fixtures/user/<id>.json` and reload at startup.
+
+Three providers are supported, selectable per request. API keys are read **server-side only** from environment variables — set whichever you want to use (e.g. in `packages/server/.env`):
+
+| Provider | Env var | Default model |
+|---|---|---|
+| Claude (Anthropic) | `ANTHROPIC_API_KEY` | `claude-sonnet-4-6` |
+| ChatGPT (OpenAI) | `OPENAI_API_KEY` | `gpt-4o` |
+| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` |
+
+```bash
+# packages/server/.env
+ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
+# DEEPSEEK_API_KEY=sk-...
+```
+
+The model is editable in the UI per request. Providers without a configured key are shown as unavailable.
+
 ---
 
 ## Keyboard shortcuts

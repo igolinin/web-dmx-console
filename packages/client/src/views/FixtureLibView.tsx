@@ -1,16 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { FixtureDef } from '@dmx-console/shared';
+import { FixtureGenModal } from '../components/FixtureGenModal.js';
 
 export function FixtureLibView() {
   const [library, setLibrary] = useState<FixtureDef[]>([]);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [genOpen, setGenOpen] = useState(false);
 
-  useEffect(() => {
+  const loadLibrary = useCallback(() => {
     void fetch('/api/fixtures')
       .then((r) => r.json() as Promise<FixtureDef[]>)
       .then(setLibrary);
   }, []);
+
+  useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
 
   const filtered = library.filter(
     (d) =>
@@ -24,11 +30,21 @@ export function FixtureLibView() {
 
   return (
     <div className="flex h-full overflow-hidden">
+      {genOpen && <FixtureGenModal onClose={() => setGenOpen(false)} onSaved={loadLibrary} />}
       {/* List */}
       <div className="w-80 border-r border-console-border flex flex-col shrink-0">
         <div className="p-3 border-b border-console-border">
-          <div className="text-sm font-semibold text-console-text mb-2">
-            Fixture Library ({library.length})
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-semibold text-console-text">
+              Fixture Library ({library.length})
+            </div>
+            <button
+              className="px-2 py-1 text-xs rounded bg-console-active text-white hover:opacity-90"
+              onClick={() => setGenOpen(true)}
+              title="Create a fixture from a PDF manual using AI"
+            >
+              ✨ AI
+            </button>
           </div>
           <input
             className="w-full bg-console-bg border border-console-border rounded px-2 py-1 text-sm text-console-text placeholder-console-dim focus:outline-none focus:border-console-active"
@@ -98,6 +114,16 @@ export function FixtureLibView() {
                 <div className="text-console-accent text-xs font-semibold mb-2">
                   {mode.name} ({mode.channelNames.length} channels)
                 </div>
+                {mode.description && (
+                  <details className="mb-2">
+                    <summary className="text-[11px] text-console-muted cursor-pointer hover:text-console-text">
+                      Original mapping from manual
+                    </summary>
+                    <pre className="text-[11px] text-console-dim whitespace-pre-wrap mt-1 font-mono">
+                      {mode.description}
+                    </pre>
+                  </details>
+                )}
                 <table className="w-full text-xs text-console-dim">
                   <thead>
                     <tr className="border-b border-console-border">

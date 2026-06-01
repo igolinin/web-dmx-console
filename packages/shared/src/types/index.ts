@@ -44,6 +44,7 @@ export interface ChannelDef {
 export interface FixtureMode {
   name: string;
   channelNames: string[]; // ordered DMX channel assignment
+  description?: string; // verbatim channel map from the source manual (LLM-generated fixtures)
 }
 
 export interface PhysicalSpec {

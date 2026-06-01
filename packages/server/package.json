@@ -13,8 +13,11 @@
   },
   "dependencies": {
     "@dmx-console/shared": "*",
+    "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "express-rate-limit": "^8.2.1",
+    "multer": "^2.1.1",
+    "pdfjs-dist": "^6.0.227",
     "socket.io": "^4.7.5",
     "uuid": "^9.0.1",
     "xml2js": "^0.6.2",
@@ -22,6 +25,7 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
+    "@types/multer": "^2.1.0",
     "@types/node": "^20.14.0",
     "@types/uuid": "^9.0.8",
     "@types/xml2js": "^0.4.14",

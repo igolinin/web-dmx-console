@@ -74,7 +74,7 @@ const GROUP_MAP: Record<string, ChannelGroup> = {
   Nothing: 'Nothing',
 };
 
-function slugify(str: string): string {
+export function slugify(str: string): string {
   return str
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
