@@ -17,6 +17,7 @@ Output rules:
 
 Mapping rules:
 - A manual often documents MULTIPLE DMX modes (e.g. "8 Channel", "11 Channel", "16 Channel", "Standard", "Extended"). Create an entry in "modes" for EVERY mode you find. Do not merge or drop modes.
+- "modes" MUST contain at least one entry. If the manual documents only a single channel layout, or you cannot find explicitly named modes, create ONE mode named after its channel count (e.g. "7 Channel") containing all channels in DMX order.
 - "channelNames" lists that mode's channels in DMX order (channel 1 first). Every name MUST exist as a key in "channels".
 - "channels" is the union of all channels across all modes (deduplicated by name).
 - For each mode, set "description" to the VERBATIM channel map from the manual for that mode — the original numbered channel list / table text, copied as faithfully as possible. This preserves the source mapping for the user.

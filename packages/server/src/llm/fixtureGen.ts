@@ -19,6 +19,29 @@ function extractJson(raw: string): unknown {
   }
 }
 
+/**
+ * Some models return a fixture with channels but no `modes` (or an empty array)
+ * when the manual documents only a single channel layout. Mirror the QLC+ parser
+ * behaviour and synthesise a default mode from the channel keys so generation
+ * succeeds instead of failing schema validation. Mutates `obj` in place.
+ */
+function synthesizeDefaultMode(obj: unknown): void {
+  if (!obj || typeof obj !== 'object') return;
+  const rec = obj as Record<string, unknown>;
+  const hasModes = Array.isArray(rec.modes) && rec.modes.length > 0;
+  if (hasModes) return;
+  const channelNames =
+    rec.channels && typeof rec.channels === 'object' ? Object.keys(rec.channels) : [];
+  if (channelNames.length === 0) return;
+  rec.modes = [
+    {
+      name: `${channelNames.length} Channel`,
+      channelNames,
+      description: 'Auto-generated: the manual did not specify discrete DMX modes.',
+    },
+  ];
+}
+
 export interface GenerateOptions {
   text: string;
   provider: ProviderName;
@@ -41,7 +64,9 @@ export async function generateFixtureFromPdf(opts: GenerateOptions): Promise<Fix
   const llm = opts.llm ?? getProvider(provider);
   const raw = await llm.complete(FIXTURE_SYSTEM_PROMPT, buildFixtureUserPrompt(text), model);
 
-  const parsed = FixtureDefSchema.safeParse(extractJson(raw));
+  const obj = extractJson(raw);
+  synthesizeDefaultMode(obj);
+  const parsed = FixtureDefSchema.safeParse(obj);
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     throw new LlmError(

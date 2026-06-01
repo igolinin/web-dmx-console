@@ -59,6 +59,47 @@ describe('generateFixtureFromPdf', () => {
     expect(def.modes).toHaveLength(2);
   });
 
+  it('synthesizes a default mode when the model omits modes', async () => {
+    const noModes = JSON.stringify({
+      manufacturer: 'Acme',
+      model: 'Par 7',
+      type: 'Color Changer',
+      channels: {
+        Dimmer: { name: 'Dimmer', group: 'Intensity' },
+        Red: { name: 'Red', group: 'Colour', colour: 'Red' },
+        Green: { name: 'Green', group: 'Colour', colour: 'Green' },
+      },
+    });
+    const def = await generateFixtureFromPdf({
+      text: 'manual',
+      provider: 'claude',
+      model: 't',
+      llm: stubProvider(noModes),
+    });
+    expect(def.modes).toHaveLength(1);
+    expect(def.modes[0]?.name).toBe('3 Channel');
+    expect(def.modes[0]?.channelNames).toEqual(['Dimmer', 'Red', 'Green']);
+    expect(def.modes[0]?.description).toMatch(/Auto-generated/);
+  });
+
+  it('synthesizes a default mode when modes is an empty array', async () => {
+    const emptyModes = JSON.stringify({
+      manufacturer: 'Acme',
+      model: 'Dim 1',
+      type: 'Dimmer',
+      channels: { Dim: { name: 'Dim', group: 'Intensity' } },
+      modes: [],
+    });
+    const def = await generateFixtureFromPdf({
+      text: 'manual',
+      provider: 'openai',
+      model: 't',
+      llm: stubProvider(emptyModes),
+    });
+    expect(def.modes).toHaveLength(1);
+    expect(def.modes[0]?.channelNames).toEqual(['Dim']);
+  });
+
   it('rejects malformed JSON', async () => {
     await expect(
       generateFixtureFromPdf({
