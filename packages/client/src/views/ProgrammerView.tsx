@@ -311,6 +311,71 @@ function PositionPanel({
   );
 }
 
+// ── Colour mixing (RGB + CMY) ──────────────────────────────────────────────
+//
+// The colour picker always works in RGB. CMY fixtures are subtractive — Cyan is
+// the inverse of Red, etc. — so we map RGB↔CMY at read/write time and present a
+// single intuitive RGB picker regardless of the fixture's mixing system.
+
+type ColourSlot = 'red' | 'green' | 'blue' | 'white' | 'amber';
+
+interface ColourMap {
+  isCmy: boolean;
+  names: Record<ColourSlot, string | undefined>;
+}
+
+/** Resolve a fixture's colour channels into logical RGB(W/A) slots. */
+export function getColourMap(def: FixtureDef): ColourMap {
+  const find = (c: string) => Object.values(def.channels).find((ch) => ch.colour === c)?.name;
+  const cyan = find('Cyan');
+  const magenta = find('Magenta');
+  const yellow = find('Yellow');
+  const white = find('White');
+  const amber = find('Amber');
+  if (cyan ?? magenta ?? yellow) {
+    return { isCmy: true, names: { red: cyan, green: magenta, blue: yellow, white, amber } };
+  }
+  return {
+    isCmy: false,
+    names: { red: find('Red'), green: find('Green'), blue: find('Blue'), white, amber },
+  };
+}
+
+function hasColourPrimaries(def: FixtureDef): boolean {
+  const { names } = getColourMap(def);
+  return !!(names.red ?? names.green ?? names.blue ?? names.white ?? names.amber);
+}
+
+/** Read a logical RGB(W/A) slot value, inverting RGB↔CMY for subtractive fixtures. */
+export function readColour(map: ColourMap, fv: Record<string, number>, slot: ColourSlot): number {
+  const name = map.names[slot];
+  if (!name) return 0;
+  const raw = fv[name] ?? 0;
+  const invert = map.isCmy && (slot === 'red' || slot === 'green' || slot === 'blue');
+  return invert ? 255 - raw : raw;
+}
+
+/** Write a logical RGB(W/A) slot into a raw channel map, inverting for CMY. */
+export function writeColour(
+  map: ColourMap,
+  out: Record<string, number>,
+  slot: ColourSlot,
+  value: number,
+): void {
+  const name = map.names[slot];
+  if (name === undefined) return;
+  const invert = map.isCmy && (slot === 'red' || slot === 'green' || slot === 'blue');
+  out[name] = invert ? 255 - value : value;
+}
+
+const PICKER_SLOTS: { key: 'Red' | 'Green' | 'Blue' | 'White' | 'Amber'; slot: ColourSlot }[] = [
+  { key: 'Red', slot: 'red' },
+  { key: 'Green', slot: 'green' },
+  { key: 'Blue', slot: 'blue' },
+  { key: 'White', slot: 'white' },
+  { key: 'Amber', slot: 'amber' },
+];
+
 function ColourPanel({
   fixtures,
   defs,
@@ -325,31 +390,25 @@ function ColourPanel({
   const [showIndividual, setShowIndividual] = useState(true);
   const colourFixtures = fixtures.filter((f) => {
     const def = defs[f.defId];
-    return def && hasColour(def);
+    return def && hasColour(def) && hasColourPrimaries(def);
   });
 
-  // Master colour: average across all selected colour fixtures
+  // Master colour: average the logical RGB(W/A) across all selected fixtures.
   const masterColour = useMemo(() => {
     const colour = { red: 0, green: 0, blue: 0, white: 0, amber: 0 };
     let count = 0;
     let hasW = false;
     let hasA = false;
     for (const f of colourFixtures) {
-      const def = defs[f.defId]!;
+      const map = getColourMap(defs[f.defId]!);
       const fv = values[f.id] ?? {};
-      const getColourCh = (c: string) => Object.values(def.channels).find((ch) => ch.colour === c);
-      const rCh = getColourCh('Red');
-      const gCh = getColourCh('Green');
-      const bCh = getColourCh('Blue');
-      const wCh = getColourCh('White');
-      const aCh = getColourCh('Amber');
-      if (wCh) hasW = true;
-      if (aCh) hasA = true;
-      colour.red += rCh ? (fv[rCh.name] ?? 0) : 0;
-      colour.green += gCh ? (fv[gCh.name] ?? 0) : 0;
-      colour.blue += bCh ? (fv[bCh.name] ?? 0) : 0;
-      colour.white += wCh ? (fv[wCh.name] ?? 0) : 0;
-      colour.amber += aCh ? (fv[aCh.name] ?? 0) : 0;
+      if (map.names.white) hasW = true;
+      if (map.names.amber) hasA = true;
+      colour.red += readColour(map, fv, 'red');
+      colour.green += readColour(map, fv, 'green');
+      colour.blue += readColour(map, fv, 'blue');
+      colour.white += readColour(map, fv, 'white');
+      colour.amber += readColour(map, fv, 'amber');
       count++;
     }
     if (count === 0) return { ...colour, hasWhite: false, hasAmber: false };
@@ -367,19 +426,12 @@ function ColourPanel({
   const handleMasterColour = useCallback(
     (channels: Partial<Record<'Red' | 'Green' | 'Blue' | 'White' | 'Amber', number>>) => {
       for (const f of colourFixtures) {
-        const def = defs[f.defId]!;
+        const map = getColourMap(defs[f.defId]!);
         const ch: Record<string, number> = {};
-        const getColourCh = (c: string) => Object.values(def.channels).find((d) => d.colour === c);
-        const rCh = getColourCh('Red');
-        const gCh = getColourCh('Green');
-        const bCh = getColourCh('Blue');
-        const wCh = getColourCh('White');
-        const aCh = getColourCh('Amber');
-        if (channels.Red !== undefined && rCh) ch[rCh.name] = channels.Red;
-        if (channels.Green !== undefined && gCh) ch[gCh.name] = channels.Green;
-        if (channels.Blue !== undefined && bCh) ch[bCh.name] = channels.Blue;
-        if (channels.White !== undefined && wCh) ch[wCh.name] = channels.White;
-        if (channels.Amber !== undefined && aCh) ch[aCh.name] = channels.Amber;
+        for (const { key, slot } of PICKER_SLOTS) {
+          const v = channels[key];
+          if (v !== undefined) writeColour(map, ch, slot, v);
+        }
         if (Object.keys(ch).length > 0) onSetChannels(f.id, ch);
       }
     },
@@ -424,33 +476,28 @@ function ColourPanel({
           {showIndividual && (
             <div className="flex gap-6 flex-wrap">
               {colourFixtures.map((f) => {
-                const def = defs[f.defId]!;
+                const map = getColourMap(defs[f.defId]!);
                 const fv = values[f.id] ?? {};
-                const getColourCh = (colour: string) =>
-                  Object.values(def.channels).find((ch) => ch.colour === colour);
-                const rCh = getColourCh('Red');
-                const gCh = getColourCh('Green');
-                const bCh = getColourCh('Blue');
-                const wCh = getColourCh('White');
-                const aCh = getColourCh('Amber');
                 return (
                   <div key={f.id} className="flex flex-col gap-1">
-                    <div className="text-xs text-console-dim mb-1">{f.label}</div>
+                    <div className="text-xs text-console-dim mb-1">
+                      {f.label}
+                      {map.isCmy && <span className="ml-1 text-console-muted">(CMY)</span>}
+                    </div>
                     <ColorPicker
-                      red={rCh ? (fv[rCh.name] ?? 0) : 0}
-                      green={gCh ? (fv[gCh.name] ?? 0) : 0}
-                      blue={bCh ? (fv[bCh.name] ?? 0) : 0}
-                      white={wCh ? (fv[wCh.name] ?? 0) : 0}
-                      amber={aCh ? (fv[aCh.name] ?? 0) : 0}
-                      hasWhite={!!wCh}
-                      hasAmber={!!aCh}
+                      red={readColour(map, fv, 'red')}
+                      green={readColour(map, fv, 'green')}
+                      blue={readColour(map, fv, 'blue')}
+                      white={readColour(map, fv, 'white')}
+                      amber={readColour(map, fv, 'amber')}
+                      hasWhite={!!map.names.white}
+                      hasAmber={!!map.names.amber}
                       onChange={(channels) => {
                         const ch: Record<string, number> = {};
-                        if (channels.Red !== undefined && rCh) ch[rCh.name] = channels.Red;
-                        if (channels.Green !== undefined && gCh) ch[gCh.name] = channels.Green;
-                        if (channels.Blue !== undefined && bCh) ch[bCh.name] = channels.Blue;
-                        if (channels.White !== undefined && wCh) ch[wCh.name] = channels.White;
-                        if (channels.Amber !== undefined && aCh) ch[aCh.name] = channels.Amber;
+                        for (const { key, slot } of PICKER_SLOTS) {
+                          const v = channels[key];
+                          if (v !== undefined) writeColour(map, ch, slot, v);
+                        }
                         onSetChannels(f.id, ch);
                       }}
                     />
