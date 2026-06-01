@@ -29,3 +29,12 @@ export const show: Show = {
 export function touchShow(): void {
   show.meta.modifiedAt = new Date().toISOString();
 }
+
+/**
+ * Merge a show loaded from disk into the live `show` singleton, mutating it in
+ * place so existing references (engines, routers) stay valid. Keys absent from
+ * `loaded` keep their current default.
+ */
+export function hydrateShow(loaded: Partial<Show>): void {
+  Object.assign(show, loaded);
+}

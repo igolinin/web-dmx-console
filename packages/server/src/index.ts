@@ -4,12 +4,12 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { ArtNetSender } from './artnet/sender.js';
 import { UniverseBuffer } from './artnet/universe.js';
-import { show } from './store/show.js';
+import { show, hydrateShow } from './store/show.js';
 import { programmer } from './store/programmer.js';
 import { playbackEngine } from './store/playback.js';
 import { chaseEngine } from './store/chaseEngine.js';
 import { shapeEngine } from './engine/shapeEngine.js';
-import { saveShow } from './store/persist.js';
+import { saveShow, loadShowFromDisk } from './store/persist.js';
 import { loadFixtureLibrary } from './fixtures/loader.js';
 import { mergeToBuffer } from './engine/merger.js';
 import { fixturesRouter } from './api/fixtures.js';
@@ -152,6 +152,13 @@ function startAutoSave(): void {
 
 async function bootstrap(): Promise<void> {
   await loadFixtureLibrary();
+
+  // Restore the last saved show (patch, cues, chases, etc.) from disk.
+  const loaded = await loadShowFromDisk();
+  if (loaded) {
+    hydrateShow(loaded);
+    console.log(`[persist] restored show "${show.meta.title}" (${show.fixtures.length} fixtures)`);
+  }
 
   httpServer.listen(PORT, () => {
     console.log(`[server] listening on http://localhost:${PORT}`);
