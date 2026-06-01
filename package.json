@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev -w packages/server\" \"npm run dev -w packages/client\"",
+    "dev": "npm run build -w packages/shared && concurrently -n server,client -c cyan,magenta \"npm run dev -w packages/server\" \"npm run dev -w packages/client\"",
     "build": "npm run build -w packages/shared && npm run build -w packages/server && npm run build -w packages/client",
     "test": "npm run test -w packages/shared && npm run test -w packages/server && npm run test -w packages/client",
     "test:coverage": "npm run test:coverage -w packages/shared && npm run test:coverage -w packages/server && npm run test:coverage -w packages/client",
