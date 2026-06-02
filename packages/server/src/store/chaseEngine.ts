@@ -84,16 +84,22 @@ export const chaseEngine = {
   /**
    * Advance all running chases based on elapsed time.
    * Call once per DMX frame with current timestamp.
-   * @param chases   Full list of Chase definitions (needed for bpm/direction/steps).
+   * @param chases   Full list of Chase definitions (needed for direction/steps).
+   * @param bpm      Global playback tempo shared by all chases.
    * @param now      Current time in ms.
    * @param onStep   Callback invoked when a step advances (for WebSocket broadcast).
    */
-  tick(chases: Chase[], now: number, onStep: (chaseId: string, stepIndex: number) => void): void {
+  tick(
+    chases: Chase[],
+    bpm: number,
+    now: number,
+    onStep: (chaseId: string, stepIndex: number) => void,
+  ): void {
+    const stepDurationMs = 60_000 / bpm;
     for (const [chaseId, active] of actives) {
       const chase = chases.find((c) => c.id === chaseId);
       if (!chase || chase.steps.length === 0) continue;
 
-      const stepDurationMs = 60_000 / chase.bpm;
       if (now - active.stepStartMs >= stepDurationMs) {
         active.lastStepIndex = active.currentStepIndex;
         active.currentStepIndex = computeNextIndex(chase, active);

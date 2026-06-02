@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { Chase, ChaseStep, FixtureValues } from '@dmx-console/shared';
 import { show, touchShow } from '../store/show.js';
 import { programmer } from '../store/programmer.js';
-import { chaseEngine, registerTap } from '../store/chaseEngine.js';
+import { chaseEngine } from '../store/chaseEngine.js';
 
 export const chasesRouter = Router();
 
@@ -39,7 +39,6 @@ chasesRouter.post('/', (req, res) => {
   const parsed = z
     .object({
       label: z.string().min(1),
-      bpm: z.number().min(1).max(10000).default(120),
       direction: DirectionSchema.default('forward'),
     })
     .safeParse(req.body);
@@ -53,7 +52,6 @@ chasesRouter.post('/', (req, res) => {
     id: uuidv4(),
     label: parsed.data.label,
     steps: [],
-    bpm: parsed.data.bpm,
     direction: parsed.data.direction,
   };
   show.chases.push(chase);
@@ -71,7 +69,6 @@ chasesRouter.patch('/:id', (req, res) => {
   const parsed = z
     .object({
       label: z.string().optional(),
-      bpm: z.number().min(1).max(10000).optional(),
       direction: DirectionSchema.optional(),
     })
     .safeParse(req.body);
@@ -82,7 +79,6 @@ chasesRouter.patch('/:id', (req, res) => {
   }
 
   if (parsed.data.label !== undefined) chase.label = parsed.data.label;
-  if (parsed.data.bpm !== undefined) chase.bpm = parsed.data.bpm;
   if (parsed.data.direction !== undefined) chase.direction = parsed.data.direction;
   touchShow();
   res.json(chase);
@@ -161,17 +157,4 @@ chasesRouter.post('/:id/play', (req, res) => {
 chasesRouter.post('/:id/stop', (req, res) => {
   chaseEngine.stop(req.params.id);
   res.json({ running: false });
-});
-
-/** POST /api/chases/:id/tap — tap tempo; updates BPM and returns new value */
-chasesRouter.post('/:id/tap', (req, res) => {
-  const chase = show.chases.find((c) => c.id === req.params.id);
-  if (!chase) {
-    res.status(404).json({ error: 'Chase not found' });
-    return;
-  }
-  const newBpm = registerTap(Date.now());
-  chase.bpm = newBpm;
-  touchShow();
-  res.json({ bpm: newBpm });
 });

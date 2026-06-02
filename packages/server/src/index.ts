@@ -95,7 +95,7 @@ function startArtNet(): void {
     playbackEngine.tick(now);
 
     // Advance chase sequencers; emit chase:step on step advance
-    chaseEngine.tick(show.chases, now, (chaseId, stepIndex) => {
+    chaseEngine.tick(show.chases, show.settings.chaseBpm, now, (chaseId, stepIndex) => {
       const stepEvent: WsChaseStep = { chaseId, stepIndex };
       io.emit('chase:step', stepEvent);
     });

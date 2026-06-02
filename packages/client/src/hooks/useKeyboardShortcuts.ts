@@ -104,10 +104,7 @@ export function useKeyboardShortcuts({
           programmer.setActiveTab('beam');
           break;
         case 'chase.tap': {
-          const id = activeChaseId ?? show?.chases[0]?.id;
-          if (id) {
-            void fetch(`/api/chases/${id}/tap`, { method: 'POST' });
-          }
+          void fetch('/api/show/tap', { method: 'POST' });
           break;
         }
         default: {

@@ -230,7 +230,6 @@ const spec = {
         properties: {
           id: { type: 'string', format: 'uuid' },
           label: { type: 'string' },
-          bpm: { type: 'number' },
           direction: { type: 'string', enum: ['forward', 'backward', 'bounce', 'random'] },
           steps: { type: 'array', items: { $ref: '#/components/schemas/ChaseStep' } },
         },

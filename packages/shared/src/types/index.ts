@@ -130,7 +130,6 @@ export interface Chase {
   id: string;
   label: string;
   steps: ChaseStep[];
-  bpm: number;
   direction: 'forward' | 'backward' | 'bounce' | 'random';
 }
 
@@ -199,6 +198,7 @@ export interface ShowSettings {
   activeCueListId?: string; // Space/Enter → go on this cue list
   activeChaseId?: string; // T → tap on this chase
   playbackMasters: PlaybackMaster[]; // 10 master fader strips
+  chaseBpm: number; // global playback tempo shared by all chases
 }
 
 // ── Show ──────────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { KeyBinding, PlaybackMaster } from '@dmx-console/shared';
 import { show, touchShow } from '../store/show.js';
 import { saveShow, loadShowFromDisk } from '../store/persist.js';
+import { registerTap } from '../store/chaseEngine.js';
 
 export const showFileRouter = Router();
 
@@ -50,6 +51,7 @@ showFileRouter.patch('/settings', (req, res) => {
       activeCueListId: z.string().optional(),
       activeChaseId: z.string().optional(),
       playbackMasters: z.array(PlaybackMasterSchema).optional(),
+      chaseBpm: z.number().min(1).max(10000).optional(),
     })
     .safeParse(req.body);
 
@@ -64,9 +66,17 @@ showFileRouter.patch('/settings', (req, res) => {
   if (d.activeChaseId !== undefined) show.settings.activeChaseId = d.activeChaseId;
   if (d.playbackMasters !== undefined)
     show.settings.playbackMasters = d.playbackMasters as PlaybackMaster[];
+  if (d.chaseBpm !== undefined) show.settings.chaseBpm = d.chaseBpm;
 
   touchShow();
   res.json(show.settings);
+});
+
+/** POST /api/show/tap — global tap tempo; updates the shared chase BPM */
+showFileRouter.post('/tap', (_req, res) => {
+  show.settings.chaseBpm = registerTap(Date.now());
+  touchShow();
+  res.json({ bpm: show.settings.chaseBpm });
 });
 
 /** POST /api/show/load — reload show from disk */

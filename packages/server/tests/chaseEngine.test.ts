@@ -4,16 +4,17 @@ import type { Chase } from '@dmx-console/shared';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// `bpm` is no longer stored on the Chase (it's a global setting); the helper
+// still takes it so each test can pass the matching tempo to `tick`.
 function makeChase(
   id: string,
-  bpm: number,
+  _bpm: number,
   direction: Chase['direction'] = 'forward',
   stepCount = 3,
 ): Chase {
   return {
     id,
     label: 'Test',
-    bpm,
     direction,
     steps: Array.from({ length: stepCount }, (_, i) => ({
       id: `step-${i}`,
@@ -63,7 +64,7 @@ describe('chaseEngine.play / stop', () => {
   });
 
   it('chase with no steps does not start', () => {
-    const ch: Chase = { id: 'chase-a', label: 'Empty', bpm: 120, direction: 'forward', steps: [] };
+    const ch: Chase = { id: 'chase-a', label: 'Empty', direction: 'forward', steps: [] };
     chaseEngine.play(ch, 0);
     expect(chaseEngine.isRunning('chase-a')).toBe(false);
   });
@@ -75,31 +76,31 @@ describe('step advance at correct BPM', () => {
   it('does not advance before one step duration has elapsed', () => {
     const ch = makeChase('chase-fwd', 120); // step = 500ms
     chaseEngine.play(ch, 0);
-    chaseEngine.tick([ch], 400, noop); // only 400ms elapsed
+    chaseEngine.tick([ch], 120, 400, noop); // only 400ms elapsed
     expect(chaseEngine.getStepIndex('chase-fwd')).toBe(0);
   });
 
   it('advances to step 1 after one step duration', () => {
     const ch = makeChase('chase-fwd', 120); // step = 500ms
     chaseEngine.play(ch, 0);
-    chaseEngine.tick([ch], 500, noop); // exactly 500ms
+    chaseEngine.tick([ch], 120, 500, noop); // exactly 500ms
     expect(chaseEngine.getStepIndex('chase-fwd')).toBe(1);
   });
 
   it('advances to step 2 after two step durations', () => {
     const ch = makeChase('chase-fwd', 120);
     chaseEngine.play(ch, 0);
-    chaseEngine.tick([ch], 500, noop);
-    chaseEngine.tick([ch], 1000, noop);
+    chaseEngine.tick([ch], 120, 500, noop);
+    chaseEngine.tick([ch], 120, 1000, noop);
     expect(chaseEngine.getStepIndex('chase-fwd')).toBe(2);
   });
 
   it('wraps around on forward direction', () => {
     const ch = makeChase('chase-fwd', 120, 'forward', 3);
     chaseEngine.play(ch, 0);
-    chaseEngine.tick([ch], 500, noop); // step 1
-    chaseEngine.tick([ch], 1000, noop); // step 2
-    chaseEngine.tick([ch], 1500, noop); // wraps to step 0
+    chaseEngine.tick([ch], 120, 500, noop); // step 1
+    chaseEngine.tick([ch], 120, 1000, noop); // step 2
+    chaseEngine.tick([ch], 120, 1500, noop); // wraps to step 0
     expect(chaseEngine.getStepIndex('chase-fwd')).toBe(0);
   });
 
@@ -107,7 +108,7 @@ describe('step advance at correct BPM', () => {
     const ch = makeChase('chase-fwd', 120);
     chaseEngine.play(ch, 0);
     const events: Array<{ chaseId: string; stepIndex: number }> = [];
-    chaseEngine.tick([ch], 500, (id, idx) => events.push({ chaseId: id, stepIndex: idx }));
+    chaseEngine.tick([ch], 120, 500, (id, idx) => events.push({ chaseId: id, stepIndex: idx }));
     expect(events).toHaveLength(1);
     expect(events[0]).toEqual({ chaseId: 'chase-fwd', stepIndex: 1 });
   });
@@ -115,7 +116,7 @@ describe('step advance at correct BPM', () => {
   it('getChaseValues reflects current step values', () => {
     const ch = makeChase('chase-fwd', 120); // step 0: Red=0, step 1: Red=80
     chaseEngine.play(ch, 0);
-    chaseEngine.tick([ch], 500, noop); // advance to step 1
+    chaseEngine.tick([ch], 120, 500, noop); // advance to step 1
     const vals = chaseEngine.getChaseValues();
     expect(vals.get('f1')?.['Red']).toBe(80);
   });
@@ -129,7 +130,7 @@ describe('forward direction', () => {
     chaseEngine.play(ch, 0);
     const steps: number[] = [chaseEngine.getStepIndex('chase-fwd')];
     for (let i = 1; i <= 4; i++) {
-      chaseEngine.tick([ch], i * 500, noop);
+      chaseEngine.tick([ch], 120, i * 500, noop);
       steps.push(chaseEngine.getStepIndex('chase-fwd'));
     }
     expect(steps).toEqual([0, 1, 2, 0, 1]);
@@ -142,7 +143,7 @@ describe('backward direction', () => {
     chaseEngine.play(ch, 0);
     const steps: number[] = [0]; // starts at 0
     for (let i = 1; i <= 4; i++) {
-      chaseEngine.tick([ch], i * 500, noop);
+      chaseEngine.tick([ch], 120, i * 500, noop);
       steps.push(chaseEngine.getStepIndex('chase-bwd'));
     }
     expect(steps).toEqual([0, 2, 1, 0, 2]);
@@ -155,7 +156,7 @@ describe('bounce direction', () => {
     chaseEngine.play(ch, 0);
     const steps: number[] = [0];
     for (let i = 1; i <= 5; i++) {
-      chaseEngine.tick([ch], i * 500, noop);
+      chaseEngine.tick([ch], 120, i * 500, noop);
       steps.push(chaseEngine.getStepIndex('chase-bnc'));
     }
     expect(steps).toEqual([0, 1, 2, 1, 0, 1]);
@@ -166,7 +167,7 @@ describe('bounce direction', () => {
     chaseEngine.play(ch, 0);
     const steps: number[] = [0];
     for (let i = 1; i <= 4; i++) {
-      chaseEngine.tick([ch], i * 500, noop);
+      chaseEngine.tick([ch], 120, i * 500, noop);
       steps.push(chaseEngine.getStepIndex('chase-bnc'));
     }
     expect(steps).toEqual([0, 1, 0, 1, 0]);
@@ -180,7 +181,7 @@ describe('random direction', () => {
     let prev = chaseEngine.getStepIndex('chase-rnd');
     let consecutiveRepeat = false;
     for (let i = 1; i <= 20; i++) {
-      chaseEngine.tick([ch], i * 100, noop);
+      chaseEngine.tick([ch], 600, i * 100, noop);
       const curr = chaseEngine.getStepIndex('chase-rnd');
       if (curr === prev) consecutiveRepeat = true;
       prev = curr;
@@ -195,7 +196,7 @@ describe('random direction', () => {
     const ch = makeChase('chase-rnd', 600, 'random', 4);
     chaseEngine.play(ch, 0);
     for (let i = 1; i <= 20; i++) {
-      chaseEngine.tick([ch], i * 100, noop);
+      chaseEngine.tick([ch], 600, i * 100, noop);
       const idx = chaseEngine.getStepIndex('chase-rnd');
       expect(idx).toBeGreaterThanOrEqual(0);
       expect(idx).toBeLessThan(4);

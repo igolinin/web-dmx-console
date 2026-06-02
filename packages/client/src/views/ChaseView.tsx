@@ -52,7 +52,7 @@ export function ChaseView() {
   );
 
   const update = useCallback(
-    async (id: string, body: Partial<Pick<Chase, 'label' | 'bpm' | 'direction'>>) => {
+    async (id: string, body: Partial<Pick<Chase, 'label' | 'direction'>>) => {
       await fetch(`/api/chases/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -85,12 +85,6 @@ export function ChaseView() {
     },
     [refresh],
   );
-
-  const tap = useCallback(async () => {
-    if (!selectedId) return;
-    await fetch(`/api/chases/${selectedId}/tap`, { method: 'POST' });
-    refresh();
-  }, [selectedId, refresh]);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -135,7 +129,7 @@ export function ChaseView() {
                   {ch.label}
                 </div>
                 <div className="text-[10px] text-console-dim">
-                  {ch.steps.length} steps · {ch.bpm} BPM · {ch.direction}
+                  {ch.steps.length} steps · {ch.direction}
                 </div>
               </button>
               <button
@@ -158,31 +152,8 @@ export function ChaseView() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Controls */}
           <div className="p-3 border-b border-console-border shrink-0 space-y-2">
-            {/* BPM + tap */}
+            {/* Direction */}
             <div className="flex items-center gap-3 flex-wrap">
-              <label className="flex items-center gap-2 text-xs text-console-dim">
-                BPM
-                <input
-                  type="number"
-                  min={1}
-                  max={10000}
-                  className="w-16 bg-console-bg border border-console-border rounded px-2 py-0.5 text-xs text-console-text"
-                  value={selected.bpm}
-                  onChange={(e) => {
-                    const v = parseInt(e.target.value, 10);
-                    if (v > 0) void update(selected.id, { bpm: v });
-                  }}
-                />
-              </label>
-
-              <button
-                className="px-3 py-1 text-xs rounded bg-console-panel border border-console-border text-console-dim hover:text-console-text active:bg-console-active/20"
-                onClick={() => void tap()}
-              >
-                ⏱ Tap
-              </button>
-
-              {/* Direction */}
               <div className="flex gap-1">
                 {DIRECTIONS.map((d) => (
                   <button

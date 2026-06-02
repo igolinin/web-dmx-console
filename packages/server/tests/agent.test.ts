@@ -233,7 +233,6 @@ describe('chase.create', () => {
       action: 'chase.create',
       payload: {
         label: 'Color Chase',
-        bpm: 120,
         direction: 'forward',
         steps: [
           { values: [{ fixtureId: 'f1', channels: { Red: 255 } }] },
@@ -243,7 +242,7 @@ describe('chase.create', () => {
     });
 
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ label: 'Color Chase', bpm: 120, direction: 'forward' });
+    expect(res.body).toMatchObject({ label: 'Color Chase', direction: 'forward' });
     expect(res.body.steps).toHaveLength(2);
     expect(show.chases).toHaveLength(1);
   });
@@ -255,7 +254,6 @@ describe('chase.create', () => {
     });
 
     expect(res.status).toBe(201);
-    expect(res.body.bpm).toBe(120);
     expect(res.body.direction).toBe('forward');
     expect(res.body.steps).toHaveLength(0);
   });

@@ -17,6 +17,7 @@ export const show: Show = {
   settings: {
     keyBindings: DEFAULT_KEY_BINDINGS,
     playbackMasters: DEFAULT_PLAYBACK_MASTERS.map((m) => ({ ...m })),
+    chaseBpm: 120,
   },
   artnet: {
     host: '255.255.255.255',
@@ -37,4 +38,9 @@ export function touchShow(): void {
  */
 export function hydrateShow(loaded: Partial<Show>): void {
   Object.assign(show, loaded);
+  // Migrate: chaseBpm became a global setting (was previously per-chase `bpm`).
+  if (show.settings.chaseBpm === undefined) {
+    const legacyBpm = (loaded.chases?.[0] as { bpm?: number } | undefined)?.bpm;
+    show.settings.chaseBpm = legacyBpm ?? 120;
+  }
 }

@@ -96,7 +96,6 @@ const CommandSchema = z.discriminatedUnion('action', [
     action: z.literal('chase.create'),
     payload: z.object({
       label: z.string().min(1),
-      bpm: z.number().min(1).max(10000).default(120),
       direction: DirectionSchema.default('forward'),
       steps: z.array(ChaseStepSchema).default([]),
     }),
@@ -332,7 +331,6 @@ export function createAgentRouter(universeBuffer: UniverseBuffer): Router {
         const chase: Chase = {
           id: uuidv4(),
           label: cmd.payload.label,
-          bpm: cmd.payload.bpm,
           direction: cmd.payload.direction,
           steps,
         };

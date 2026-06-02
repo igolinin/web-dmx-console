@@ -23,6 +23,61 @@ const NAV_ITEMS: { id: View; label: string; shortcut: string }[] = [
   { id: 'playback', label: 'Playback', shortcut: 'Alt+7' },
 ];
 
+// Global chase tempo: shared by all chases, editable from any tab.
+function BpmControl() {
+  const show = useShowStore((s) => s.show);
+  const storeBpm = show?.settings.chaseBpm ?? 120;
+  const [bpm, setBpm] = useState(storeBpm);
+
+  // Keep local value in sync when the store updates (e.g. tap, other clients).
+  useEffect(() => {
+    setBpm(storeBpm);
+  }, [storeBpm]);
+
+  const commit = useCallback((value: number) => {
+    if (!Number.isFinite(value) || value < 1) return;
+    void fetch('/api/show/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chaseBpm: value }),
+    });
+  }, []);
+
+  const tap = useCallback(() => {
+    void fetch('/api/show/tap', { method: 'POST' })
+      .then((r) => r.json() as Promise<{ bpm: number }>)
+      .then((d) => setBpm(d.bpm))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <label className="flex items-center gap-1 text-xs text-console-dim">
+        BPM
+        <input
+          type="number"
+          min={1}
+          max={10000}
+          className="w-14 bg-console-bg border border-console-border rounded px-1.5 py-0.5 text-xs text-console-text"
+          value={bpm}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            setBpm(Number.isNaN(v) ? 0 : v);
+            if (v > 0) commit(v);
+          }}
+        />
+      </label>
+      <button
+        className="px-2 py-1 text-xs rounded border border-console-border text-console-dim hover:text-console-text active:bg-console-active/20"
+        onClick={tap}
+        title="Tap tempo"
+      >
+        ⏱ Tap
+      </button>
+    </div>
+  );
+}
+
 function UniverseBar() {
   const dmxOutput = useShowStore((s) => s.dmxOutput);
   const show = useShowStore((s) => s.show);
@@ -162,6 +217,7 @@ export default function App() {
         ))}
 
         <div className="ml-auto flex items-center gap-2">
+          <BpmControl />
           <button
             className="px-2 py-1 text-xs rounded border border-console-border text-console-dim hover:text-console-text transition-colors"
             title="Keyboard shortcuts (?)"

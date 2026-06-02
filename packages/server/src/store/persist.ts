@@ -18,7 +18,7 @@ export async function loadShowFromDisk(): Promise<Show | null> {
     const loaded = JSON.parse(content) as Show;
     // Migrate: ensure settings field exists (older save files may lack it)
     if (!loaded.settings) {
-      loaded.settings = { keyBindings: DEFAULT_KEY_BINDINGS, playbackMasters: [] };
+      loaded.settings = { keyBindings: DEFAULT_KEY_BINDINGS, playbackMasters: [], chaseBpm: 120 };
     }
     return loaded;
   } catch {
