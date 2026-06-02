@@ -215,10 +215,24 @@ function applyPixelTexture(
   output.set(fixture.id, updated);
 }
 
+/**
+ * The oscillation centre for a channel: the fixture's current base (programmer /
+ * playback) value if set, else the layer's stored `center` fallback. This makes
+ * an applied shape swing around wherever the channel currently sits (LTP).
+ */
+function centerFor(
+  layer: ShapeLayer,
+  base: ChannelValues | undefined,
+  channelName: string,
+): number {
+  return base?.[channelName] ?? layer.center;
+}
+
 function apply2DLayer(
   layer: ShapeLayer,
   fixturePhase: number,
   fixture: PatchedFixture,
+  base: ChannelValues | undefined,
   output: Map<string, ChannelValues>,
 ): void {
   if (!layer.shape2d) return;
@@ -227,8 +241,8 @@ function apply2DLayer(
 
   const xCh = resolveChannel(layer.xTarget ?? 'pan', fixture);
   const yCh = resolveChannel(layer.yTarget ?? 'tilt', fixture);
-  if (xCh) updated[xCh] = clamp255(layer.center + (layer.size / 2) * x);
-  if (yCh) updated[yCh] = clamp255(layer.center + (layer.size / 2) * y);
+  if (xCh) updated[xCh] = clamp255(centerFor(layer, base, xCh) + (layer.size / 2) * x);
+  if (yCh) updated[yCh] = clamp255(centerFor(layer, base, yCh) + (layer.size / 2) * y);
   output.set(fixture.id, updated);
 }
 
@@ -237,6 +251,7 @@ function apply1DLayer(
   fixturePhase: number,
   rand: number,
   fixture: PatchedFixture,
+  base: ChannelValues | undefined,
   output: Map<string, ChannelValues>,
 ): void {
   if (!layer.waveform || !layer.target) return;
@@ -244,7 +259,7 @@ function apply1DLayer(
   if (!channelName) return;
 
   const norm = evalWaveform(layer.waveform, fixturePhase, rand);
-  const value = clamp255(layer.center + (layer.size / 2) * norm);
+  const value = clamp255(centerFor(layer, base, channelName) + (layer.size / 2) * norm);
   const updated: ChannelValues = { ...(output.get(fixture.id) ?? {}) };
   updated[channelName] = value;
   output.set(fixture.id, updated);
@@ -256,8 +271,15 @@ export const shapeEngine = {
   /**
    * Advance all active shape layers and recompute cached output values.
    * Call once per DMX frame with the current timestamp.
+   * @param baseValues Per-fixture base values (the programmer) used as the
+   *   oscillation centre so shapes swing around the live LTP value.
    */
-  tick(shapes: ShapeLayer[], fixtures: PatchedFixture[], now: number): void {
+  tick(
+    shapes: ShapeLayer[],
+    fixtures: PatchedFixture[],
+    baseValues: Map<string, ChannelValues>,
+    now: number,
+  ): void {
     if (lastTickMs === null) {
       lastTickMs = now;
     }
@@ -300,14 +322,15 @@ export const shapeEngine = {
         if (!fixture) continue;
 
         const fixturePhase = sp.phase + i * layer.spread + layer.phaseOffset;
+        const base = baseValues.get(fixtureId);
 
         if (pixelTexture) {
           applyPixelTexture(pixelTexture, sp.phase + layer.phaseOffset, fixture, output);
         } else if (layer.shape2d) {
-          apply2DLayer(layer, fixturePhase, fixture, output);
+          apply2DLayer(layer, fixturePhase, fixture, base, output);
         } else if (layer.waveform && layer.target) {
           const rand = sp.randomValues[i] ?? 0;
-          apply1DLayer(layer, fixturePhase, rand, fixture, output);
+          apply1DLayer(layer, fixturePhase, rand, fixture, base, output);
         }
       }
     }

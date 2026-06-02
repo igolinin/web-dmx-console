@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from 'react';
-import type { FixtureDef, PatchedFixture } from '@dmx-console/shared';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { FixtureDef, PatchedFixture, ShapeLayer } from '@dmx-console/shared';
 import { useShowStore } from '../store/useShow.js';
 import { useProgrammer } from '../store/useProgrammer.js';
 import { XYPad } from '../components/XYPad.js';
 import { ColorPicker } from '../components/ColorPicker.js';
 import { FaderBank } from '../components/FaderBank.js';
+import { ShapeSection, type ShapeAttribute } from '../components/ShapeSection.js';
 
 // ── Fixture selection grid ─────────────────────────────────────────────────
 
@@ -671,6 +672,21 @@ export function ProgrammerView() {
 
   const defMap = useShowStore((s) => s.defMap);
 
+  // Shapes are applied/edited inline per attribute tab; poll so live edits and
+  // other clients stay reflected.
+  const [shapes, setShapes] = useState<ShapeLayer[]>([]);
+  const refreshShapes = useCallback(() => {
+    void fetch('/api/shapes')
+      .then((r) => r.json() as Promise<ShapeLayer[]>)
+      .then(setShapes)
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    refreshShapes();
+    const id = setInterval(refreshShapes, 500);
+    return () => clearInterval(id);
+  }, [refreshShapes]);
+
   const selectedFixtures = fixtures.filter((f) => selectedIds.includes(f.id));
 
   const handleSelect = useCallback(
@@ -760,7 +776,17 @@ export function ProgrammerView() {
               </span>
             </p>
           ) : (
-            renderPanel()
+            <>
+              {renderPanel()}
+              {activeTab !== 'raw' && (
+                <ShapeSection
+                  attribute={activeTab as ShapeAttribute}
+                  selectedIds={selectedIds}
+                  shapes={shapes}
+                  refreshShapes={refreshShapes}
+                />
+              )}
+            </>
           )}
         </div>
       </div>

@@ -21,8 +21,7 @@ export const DEFAULT_KEY_BINDINGS: KeyBinding[] = [
   { key: '2', alt: true, description: 'Programmer view', actionId: 'ui.view.programmer' },
   { key: '3', alt: true, description: 'Cue list view', actionId: 'ui.view.cuelist' },
   { key: '4', alt: true, description: 'Chase view', actionId: 'ui.view.chase' },
-  { key: '5', alt: true, description: 'Shape view', actionId: 'ui.view.shape' },
-  { key: '6', alt: true, description: 'Library view', actionId: 'ui.view.library' },
+  { key: '5', alt: true, description: 'Library view', actionId: 'ui.view.library' },
   // ── Fixture selection ────────────────────────────────────────────────────────
   { key: 'a', ctrl: true, description: 'Select all fixtures', actionId: 'programmer.selectAll' },
   { key: 'd', ctrl: true, description: 'Deselect all', actionId: 'programmer.deselectAll' },

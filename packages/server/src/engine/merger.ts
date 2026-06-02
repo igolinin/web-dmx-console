@@ -22,6 +22,10 @@ export interface MergeLayer {
  *     scaled by its master fader) and the programmer.
  *   - All other channels → LTP: programmer wins if set, otherwise the
  *     highest-priority layer that defines the channel.
+ *   - Shape values sit on top of everything: any channel a shape defines is
+ *     overridden by the shape output (the shape already oscillates around the
+ *     programmer/LTP base), so shapes are visible even on programmer-held
+ *     channels and intensity dips are not swallowed by HTP.
  *
  * Clears the buffer before writing, so every call produces a fresh snapshot.
  */
@@ -30,6 +34,7 @@ export function mergeToBuffer(
   layers: MergeLayer[],
   programmerValues: Map<string, ChannelValues>,
   target: UniverseBuffer,
+  shapeValues = new Map<string, ChannelValues>(),
 ): void {
   // Clear all previously active universes
   for (const u of target.activeUniverses()) {
@@ -44,6 +49,7 @@ export function mergeToBuffer(
     if (!mode) continue;
 
     const prog = programmerValues.get(fixture.id) ?? {};
+    const shape = shapeValues.get(fixture.id);
 
     mode.channelNames.forEach((channelName, i) => {
       const channelDef = def.channels[channelName];
@@ -52,9 +58,13 @@ export function mergeToBuffer(
       const dmxChannel = fixture.address + i;
 
       const progVal = prog[channelName];
+      const shapeVal = shape?.[channelName];
 
       let finalVal: number;
-      if (HTP_GROUPS.has(group)) {
+      if (shapeVal !== undefined) {
+        // Shapes win outright on the channels they drive.
+        finalVal = Math.round(shapeVal);
+      } else if (HTP_GROUPS.has(group)) {
         // HTP: highest scaled value across all playback layers + programmer.
         let v = 0;
         for (const layer of layers) {

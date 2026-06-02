@@ -6,6 +6,7 @@ import type {
   FixtureGroup,
   PatchedFixture,
   FixtureDef,
+  ShapeLayer,
 } from '@dmx-console/shared';
 import { useShowStore } from '../store/useShow.js';
 
@@ -413,6 +414,7 @@ export function PlaybackView() {
   const defMap = useShowStore((s) => s.defMap);
   const [cueLists, setCueLists] = useState<CueListWithPlayback[]>([]);
   const [chases, setChases] = useState<ChaseWithStatus[]>([]);
+  const [shapes, setShapes] = useState<ShapeLayer[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   // Local copy of masters; synced with show.settings.playbackMasters
   const [masters, setMasters] = useState<PlaybackMaster[]>([]);
@@ -436,6 +438,17 @@ export function PlaybackView() {
     void fetch('/api/chases')
       .then((r) => r.json() as Promise<ChaseWithStatus[]>)
       .then(setChases);
+    void fetch('/api/shapes')
+      .then((r) => r.json() as Promise<ShapeLayer[]>)
+      .then(setShapes);
+  }, []);
+
+  const patchShape = useCallback((id: string, body: Record<string, unknown>) => {
+    void fetch(`/api/shapes/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   }, []);
 
   useEffect(() => {
@@ -498,6 +511,89 @@ export function PlaybackView() {
           ))}
         </div>
       </div>
+
+      {/* ── Shapes (live size / speed) ───────────────────────────────────── */}
+      {shapes.length > 0 && (
+        <div className="p-3 border-b border-console-border shrink-0">
+          <div className="text-xs font-semibold text-console-dim uppercase tracking-wider mb-2">
+            Shapes
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {shapes.map((s) => {
+              const setLocal = (patch: Partial<ShapeLayer>) => {
+                setShapes((prev) => prev.map((x) => (x.id === s.id ? { ...x, ...patch } : x)));
+              };
+              return (
+                <div
+                  key={s.id}
+                  className={[
+                    'w-48 bg-console-panel border rounded p-2',
+                    s.active ? 'border-console-active' : 'border-console-border',
+                  ].join(' ')}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <button
+                      className={[
+                        'w-3 h-3 rounded-full border shrink-0 transition-colors',
+                        s.active
+                          ? 'bg-console-active border-console-active'
+                          : 'bg-transparent border-console-border',
+                      ].join(' ')}
+                      title={s.active ? 'Active (click to stop)' : 'Inactive (click to run)'}
+                      onClick={() => {
+                        setLocal({ active: !s.active });
+                        patchShape(s.id, { active: !s.active });
+                      }}
+                    />
+                    <span className="text-xs text-console-text truncate" title={s.label}>
+                      {s.label}
+                    </span>
+                  </div>
+                  <label className="flex flex-col gap-0.5 text-[10px] text-console-dim">
+                    <span className="flex justify-between">
+                      <span>Size</span>
+                      <span className="tabular-nums text-console-text">{s.size}</span>
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={255}
+                      value={s.size}
+                      className="w-full"
+                      style={{ accentColor: 'var(--color-console-active, #3b82f6)' }}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        setLocal({ size: v });
+                        patchShape(s.id, { size: v });
+                      }}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-0.5 text-[10px] text-console-dim mt-1">
+                    <span className="flex justify-between">
+                      <span>Speed</span>
+                      <span className="tabular-nums text-console-text">{s.speed}Hz</span>
+                    </span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={20}
+                      step={0.1}
+                      value={s.speed}
+                      className="w-full"
+                      style={{ accentColor: 'var(--color-console-active, #3b82f6)' }}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value);
+                        setLocal({ speed: v });
+                        patchShape(s.id, { speed: v });
+                      }}
+                    />
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Group presets ───────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">

@@ -105,8 +105,8 @@ function startArtNet(): void {
       io.emit('chase:step', stepEvent);
     });
 
-    // Advance shape engine
-    shapeEngine.tick(show.shapes, show.fixtures, now);
+    // Advance shape engine (centres oscillation on the live programmer values)
+    shapeEngine.tick(show.shapes, show.fixtures, programmer.values, now);
 
     // Master-fader levels (0–1) keyed by the cue list / chase id they control.
     const masterScale = new Map<string, number>();
@@ -124,9 +124,16 @@ function startArtNet(): void {
     for (const { chaseId, values } of chaseEngine.getActiveChaseValues()) {
       layers.push({ values, intensityScale: masterScale.get(chaseId) ?? 1 });
     }
-    layers.push({ values: shapeEngine.getShapeValues(), intensityScale: 1 });
 
-    mergeToBuffer(show.fixtures, layers, programmer.values, universeBuffer);
+    // Shapes are applied as a top override (above the programmer) since they
+    // already oscillate around the live programmer/LTP base value.
+    mergeToBuffer(
+      show.fixtures,
+      layers,
+      programmer.values,
+      universeBuffer,
+      shapeEngine.getShapeValues(),
+    );
 
     // Determine which universes to emit: configured + any with patched fixtures
     const universesToSend = new Set([

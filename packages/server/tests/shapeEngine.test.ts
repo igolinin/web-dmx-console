@@ -339,10 +339,10 @@ describe('shapeEngine integration', () => {
     const fx = makeFixture('f1');
     const layer = makeLayer({ waveform: 'sine', target: 'pan', center: 128, size: 128 });
 
-    shapeEngine.tick([layer], [fx], 0);
+    shapeEngine.tick([layer], [fx], new Map(),0);
     // After 1/4 cycle at 1Hz = 250ms, phase = 90°, sine(90°) = 1
     // output = 128 + (128/2) * 1 = 128 + 64 = 192
-    shapeEngine.tick([layer], [fx], 250);
+    shapeEngine.tick([layer], [fx], new Map(),250);
 
     const vals = shapeEngine.getShapeValues();
     expect(vals.get('f1')?.['Pan']).toBe(192);
@@ -360,8 +360,8 @@ describe('shapeEngine integration', () => {
 
     // At t=0, phase=0: x=cos(0)=1, y=sin(0)=0
     // pan = 128 + 64 * 1 = 192, tilt = 128 + 64 * 0 = 128
-    shapeEngine.tick([layer], [fx], 0);
-    shapeEngine.tick([layer], [fx], 1); // tiny tick to seed dt
+    shapeEngine.tick([layer], [fx], new Map(),0);
+    shapeEngine.tick([layer], [fx], new Map(),1); // tiny tick to seed dt
 
     // phase is nearly 0 → x≈1, y≈0
     const vals = shapeEngine.getShapeValues();
@@ -369,19 +369,43 @@ describe('shapeEngine integration', () => {
     expect(vals.get('f1')?.['Tilt']).toBe(128);
   });
 
+  it('oscillates around the live base (programmer) value, not the stored center', () => {
+    const fx = makeFixture('f1');
+    // center fallback is 200, but the programmer holds Pan=100 → that is the
+    // oscillation centre the shape should swing around.
+    const layer = makeLayer({ waveform: 'sine', target: 'pan', center: 200, size: 128 });
+    const base = new Map([['f1', { Pan: 100 }]]);
+
+    shapeEngine.tick([layer], [fx], base, 0);
+    shapeEngine.tick([layer], [fx], base, 250); // 1/4 cycle → sine=1
+
+    // output = 100 (live base) + (128/2) * 1 = 164  (would be 264→255 with center=200)
+    expect(shapeEngine.getShapeValues().get('f1')?.['Pan']).toBe(164);
+  });
+
+  it('falls back to the layer center when no base value is set', () => {
+    const fx = makeFixture('f1');
+    const layer = makeLayer({ waveform: 'sine', target: 'pan', center: 128, size: 128 });
+
+    shapeEngine.tick([layer], [fx], new Map(), 0);
+    shapeEngine.tick([layer], [fx], new Map([['f1', {}]]), 250);
+
+    expect(shapeEngine.getShapeValues().get('f1')?.['Pan']).toBe(192);
+  });
+
   it('inactive layer produces no output', () => {
     const fx = makeFixture('f1');
     const layer = makeLayer({ waveform: 'sine', target: 'pan', active: false });
-    shapeEngine.tick([layer], [fx], 0);
-    shapeEngine.tick([layer], [fx], 250);
+    shapeEngine.tick([layer], [fx], new Map(),0);
+    shapeEngine.tick([layer], [fx], new Map(),250);
     expect(shapeEngine.getShapeValues().size).toBe(0);
   });
 
   it('pixel texture fills all pixel channels', () => {
     const fx = makeFixture('f1', 'mock-led-bar');
     const layer = makeLayer({ pixelTexture: 'rainbow', fixtureIds: ['f1'] });
-    shapeEngine.tick([layer], [fx], 0);
-    shapeEngine.tick([layer], [fx], 100);
+    shapeEngine.tick([layer], [fx], new Map(),0);
+    shapeEngine.tick([layer], [fx], new Map(),100);
     const vals = shapeEngine.getShapeValues();
     const ch = vals.get('f1');
     expect(ch).toBeDefined();
@@ -405,11 +429,11 @@ describe('shapeEngine integration', () => {
       center: 128,
       size: 128,
     });
-    shapeEngine.tick([layer], [fx1, fx2, fx3], 0);
+    shapeEngine.tick([layer], [fx1, fx2, fx3], new Map(),0);
     // At t=0, phase=0:
     // f1 phase=0°, f2 phase=120°, f3 phase=240°
     // sin(0)=0, sin(120°)≈0.866, sin(240°)≈-0.866
-    shapeEngine.tick([layer], [fx1, fx2, fx3], 1);
+    shapeEngine.tick([layer], [fx1, fx2, fx3], new Map(),1);
     const vals = shapeEngine.getShapeValues();
     const p1 = vals.get('f1')?.['Pan'];
     const p2 = vals.get('f2')?.['Pan'];
@@ -422,7 +446,7 @@ describe('shapeEngine integration', () => {
   it('reset clears all state', () => {
     const fx = makeFixture('f1');
     const layer = makeLayer({ waveform: 'sine', target: 'pan' });
-    shapeEngine.tick([layer], [fx], 0);
+    shapeEngine.tick([layer], [fx], new Map(),0);
     shapeEngine.reset();
     expect(shapeEngine.getShapeValues().size).toBe(0);
   });

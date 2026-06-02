@@ -15,20 +15,18 @@ import type { NumBuffer, FlashState } from '../keyboard/keyMap.js';
 import { useShowStore } from '../store/useShow.js';
 import { useProgrammer } from '../store/useProgrammer.js';
 
-export type View = 'patch' | 'programmer' | 'cuelist' | 'chase' | 'shape' | 'library' | 'playback';
+export type View = 'patch' | 'programmer' | 'cuelist' | 'chase' | 'library' | 'playback';
 
 interface KeyboardShortcutsOptions {
   setView: (v: View) => void;
   toggleHelp: () => void;
   activeCueListId?: string | undefined;
-  activeChaseId?: string | undefined;
 }
 
 export function useKeyboardShortcuts({
   setView,
   toggleHelp,
   activeCueListId,
-  activeChaseId,
 }: KeyboardShortcutsOptions): void {
   const show = useShowStore((s) => s.show);
   const programmer = useProgrammer();
@@ -85,9 +83,6 @@ export function useKeyboardShortcuts({
         case 'ui.view.chase':
           setView('chase');
           break;
-        case 'ui.view.shape':
-          setView('shape');
-          break;
         case 'ui.view.library':
           setView('library');
           break;
@@ -124,7 +119,7 @@ export function useKeyboardShortcuts({
         }
       }
     },
-    [show, activeCueListId, activeChaseId, programmer, setView, toggleHelp],
+    [show, activeCueListId, programmer, setView, toggleHelp],
   );
 
   useEffect(() => {

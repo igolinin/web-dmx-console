@@ -8,7 +8,6 @@ import { PatchView } from './views/PatchView.js';
 import { ProgrammerView } from './views/ProgrammerView.js';
 import { CueListView } from './views/CueListView.js';
 import { ChaseView } from './views/ChaseView.js';
-import { ShapeView } from './views/ShapeView.js';
 import { FixtureLibView } from './views/FixtureLibView.js';
 import { PlaybackView } from './views/PlaybackView.js';
 import { DEFAULT_KEY_BINDINGS } from '@dmx-console/shared';
@@ -18,9 +17,8 @@ const NAV_ITEMS: { id: View; label: string; shortcut: string }[] = [
   { id: 'programmer', label: 'Programmer', shortcut: 'Alt+2' },
   { id: 'cuelist', label: 'Cues', shortcut: 'Alt+3' },
   { id: 'chase', label: 'Chases', shortcut: 'Alt+4' },
-  { id: 'shape', label: 'Shapes', shortcut: 'Alt+5' },
-  { id: 'library', label: 'Library', shortcut: 'Alt+6' },
-  { id: 'playback', label: 'Playback', shortcut: 'Alt+7' },
+  { id: 'library', label: 'Library', shortcut: 'Alt+5' },
+  { id: 'playback', label: 'Playback', shortcut: 'Alt+6' },
 ];
 
 // Global chase tempo: shared by all chases, editable from any tab.
@@ -47,7 +45,7 @@ function BpmControl() {
     void fetch('/api/show/tap', { method: 'POST' })
       .then((r) => r.json() as Promise<{ bpm: number }>)
       .then((d) => setBpm(d.bpm))
-      .catch(() => {});
+      .catch(() => undefined);
   }, []);
 
   return (
@@ -150,7 +148,6 @@ export default function App() {
     setView,
     toggleHelp: () => setHelpOpen((o) => !o),
     activeCueListId: show?.settings.activeCueListId,
-    activeChaseId: show?.settings.activeChaseId,
   });
 
   const renderView = () => {
@@ -163,8 +160,6 @@ export default function App() {
         return <CueListView />;
       case 'chase':
         return <ChaseView />;
-      case 'shape':
-        return <ShapeView />;
       case 'library':
         return <FixtureLibView />;
       case 'playback':
