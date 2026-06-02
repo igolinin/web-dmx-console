@@ -105,6 +105,11 @@ export const chaseEngine = {
     }
   },
 
+  /** Per-chase current step values, in run order (for master-scaled merging). */
+  getActiveChaseValues(): { chaseId: string; values: Map<string, ChannelValues> }[] {
+    return [...actives.values()].map((a) => ({ chaseId: a.chaseId, values: a.currentValues }));
+  },
+
   /** DMX output: LTP merge of all running chases. */
   getChaseValues(): Map<string, ChannelValues> {
     const merged = new Map<string, ChannelValues>();

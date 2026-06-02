@@ -11,7 +11,7 @@ import { chaseEngine } from './store/chaseEngine.js';
 import { shapeEngine } from './engine/shapeEngine.js';
 import { saveShow, loadShowFromDisk } from './store/persist.js';
 import { loadFixtureLibrary } from './fixtures/loader.js';
-import { mergeToBuffer } from './engine/merger.js';
+import { mergeToBuffer, type MergeLayer } from './engine/merger.js';
 import { fixturesRouter } from './api/fixtures.js';
 import { patchRouter } from './api/patch.js';
 import { programmerRouter } from './api/programmer.js';
@@ -103,21 +103,25 @@ function startArtNet(): void {
     // Advance shape engine
     shapeEngine.tick(show.shapes, show.fixtures, now);
 
-    // Build merged output: cue → chase (LTP) → shape (LTP) → programmer on top
-    const cueValues = playbackEngine.getCueValues();
-    const chaseValues = chaseEngine.getChaseValues();
-    const shapeValues = shapeEngine.getShapeValues();
-    // Chase overrides cue (LTP)
-    for (const [id, channels] of chaseValues) {
-      const existing = cueValues.get(id) ?? {};
-      cueValues.set(id, { ...existing, ...channels });
+    // Master-fader levels (0–1) keyed by the cue list / chase id they control.
+    const masterScale = new Map<string, number>();
+    for (const m of show.settings.playbackMasters) {
+      if (m.assignedId) masterScale.set(m.assignedId, Math.max(0, Math.min(1, m.level / 100)));
     }
-    // Shape overrides cue+chase (LTP)
-    for (const [id, channels] of shapeValues) {
-      const existing = cueValues.get(id) ?? {};
-      cueValues.set(id, { ...existing, ...channels });
+
+    // Build playback layers in ascending LTP priority: cues → chases → shapes.
+    // Intensity is HTP across all layers; each cue/chase layer's intensity is
+    // scaled by its assigned master fader. The programmer sits on top (in merger).
+    const layers: MergeLayer[] = [];
+    for (const { cueListId, values } of playbackEngine.getActivePlaybackValues()) {
+      layers.push({ values, intensityScale: masterScale.get(cueListId) ?? 1 });
     }
-    mergeToBuffer(show.fixtures, cueValues, programmer.values, universeBuffer);
+    for (const { chaseId, values } of chaseEngine.getActiveChaseValues()) {
+      layers.push({ values, intensityScale: masterScale.get(chaseId) ?? 1 });
+    }
+    layers.push({ values: shapeEngine.getShapeValues(), intensityScale: 1 });
+
+    mergeToBuffer(show.fixtures, layers, programmer.values, universeBuffer);
 
     // Determine which universes to emit: configured + any with patched fixtures
     const universesToSend = new Set([

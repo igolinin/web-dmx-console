@@ -1,9 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { hsvToRgb, rgbToHsv, xyToPanTilt, panTiltToXy } from '@dmx-console/shared';
 import { UniverseBuffer } from '../src/artnet/universe.js';
-import { mergeToBuffer } from '../src/engine/merger.js';
+import { mergeToBuffer, type MergeLayer } from '../src/engine/merger.js';
 import { programmer } from '../src/store/programmer.js';
 import type { PatchedFixture, ChannelValues } from '@dmx-console/shared';
+
+/** Wrap a single source map as a full-intensity merge layer. */
+function layer(values: Map<string, ChannelValues>): MergeLayer[] {
+  return [{ values, intensityScale: 1 }];
+}
 
 // ── Fixtures for testing ──────────────────────────────────────────────────────
 
@@ -50,7 +55,7 @@ describe('merger — HTP / LTP rules', () => {
     programmer.set('f-dimmer', { Dimmer: 100 }); // prog lower
 
     const buf = new UniverseBuffer();
-    mergeToBuffer([dimmerFixture], cue, programmer.values, buf);
+    mergeToBuffer([dimmerFixture], layer(cue), programmer.values, buf);
 
     expect(buf.get(0)[0]).toBe(200); // HTP: max(200, 100) = 200
   });
@@ -60,7 +65,7 @@ describe('merger — HTP / LTP rules', () => {
     programmer.set('f-dimmer', { Dimmer: 200 }); // prog higher
 
     const buf = new UniverseBuffer();
-    mergeToBuffer([dimmerFixture], cue, programmer.values, buf);
+    mergeToBuffer([dimmerFixture], layer(cue), programmer.values, buf);
 
     expect(buf.get(0)[0]).toBe(200); // HTP: max(100, 200) = 200
   });
@@ -72,7 +77,7 @@ describe('merger — HTP / LTP rules', () => {
     programmer.set('f-rgb', { Red: 50 }); // only override Red
 
     const buf = new UniverseBuffer();
-    mergeToBuffer([rgbFixture], cue, programmer.values, buf);
+    mergeToBuffer([rgbFixture], layer(cue), programmer.values, buf);
 
     // address 10 → indices 9, 10, 11 (0-based)
     expect(buf.get(0)[9]).toBe(50); // Red: LTP = programmer 50 (not cue 255)
@@ -85,7 +90,7 @@ describe('merger — HTP / LTP rules', () => {
     programmer.set('f-rgb', { Red: 0 });
 
     const buf = new UniverseBuffer();
-    mergeToBuffer([rgbFixture], cue, programmer.values, buf);
+    mergeToBuffer([rgbFixture], layer(cue), programmer.values, buf);
 
     expect(buf.get(0)[9]).toBe(0); // LTP: programmer 0 wins
   });
@@ -94,7 +99,7 @@ describe('merger — HTP / LTP rules', () => {
     const cue = new Map<string, ChannelValues>([['f-dimmer', { Dimmer: 180 }]]);
 
     const buf = new UniverseBuffer();
-    mergeToBuffer([dimmerFixture], cue, programmer.values, buf);
+    mergeToBuffer([dimmerFixture], layer(cue), programmer.values, buf);
 
     expect(buf.get(0)[0]).toBe(180);
   });
@@ -103,7 +108,7 @@ describe('merger — HTP / LTP rules', () => {
     programmer.set('f-rgb', { Red: 200, Green: 100, Blue: 50 });
 
     const buf = new UniverseBuffer();
-    mergeToBuffer([rgbFixture], new Map(), programmer.values, buf);
+    mergeToBuffer([rgbFixture], [], programmer.values, buf);
 
     expect(buf.get(0)[9]).toBe(200);
     expect(buf.get(0)[10]).toBe(100);
@@ -115,11 +120,11 @@ describe('merger — HTP / LTP rules', () => {
     programmer.set('f-dimmer', { Dimmer: 255 });
 
     const buf = new UniverseBuffer();
-    mergeToBuffer([dimmerFixture], cue, programmer.values, buf);
+    mergeToBuffer([dimmerFixture], layer(cue), programmer.values, buf);
     expect(buf.get(0)[0]).toBe(255); // programmer overrides
 
     programmer.clear('f-dimmer');
-    mergeToBuffer([dimmerFixture], cue, programmer.values, buf);
+    mergeToBuffer([dimmerFixture], layer(cue), programmer.values, buf);
     expect(buf.get(0)[0]).toBe(150); // back to cue
   });
 
@@ -128,7 +133,7 @@ describe('merger — HTP / LTP rules', () => {
     programmer.set('f-rgb', { Red: 100, Green: 200, Blue: 50 });
 
     const buf = new UniverseBuffer();
-    mergeToBuffer([dimmerFixture, rgbFixture], new Map(), programmer.values, buf);
+    mergeToBuffer([dimmerFixture, rgbFixture], [], programmer.values, buf);
 
     expect(buf.get(0)[0]).toBe(255); // dimmer at ch1
     expect(buf.get(0)[9]).toBe(100); // RGB at ch10–12
@@ -149,8 +154,81 @@ describe('merger — HTP / LTP rules', () => {
     programmer.set('f-unknown', { Dimmer: 255 });
 
     const buf = new UniverseBuffer();
-    expect(() => mergeToBuffer([unknownFixture], new Map(), programmer.values, buf)).not.toThrow();
+    expect(() => mergeToBuffer([unknownFixture], [], programmer.values, buf)).not.toThrow();
     expect(buf.activeUniverses()).toHaveLength(0);
+  });
+
+  it('intensity is HTP across playback layers — higher layer cannot lower it', () => {
+    // Layer order is LTP-ascending: cue (200) then chase (100).
+    const cueLayer = new Map<string, ChannelValues>([['f-dimmer', { Dimmer: 200 }]]);
+    const chaseLayer = new Map<string, ChannelValues>([['f-dimmer', { Dimmer: 100 }]]);
+
+    const buf = new UniverseBuffer();
+    mergeToBuffer(
+      [dimmerFixture],
+      [
+        { values: cueLayer, intensityScale: 1 },
+        { values: chaseLayer, intensityScale: 1 },
+      ],
+      programmer.values,
+      buf,
+    );
+
+    expect(buf.get(0)[0]).toBe(200); // HTP max(200, 100), not LTP overwrite to 100
+  });
+
+  it('non-intensity is still LTP across layers — higher layer overwrites', () => {
+    const cueLayer = new Map<string, ChannelValues>([['f-rgb', { Red: 200 }]]);
+    const shapeLayer = new Map<string, ChannelValues>([['f-rgb', { Red: 50 }]]);
+
+    const buf = new UniverseBuffer();
+    mergeToBuffer(
+      [rgbFixture],
+      [
+        { values: cueLayer, intensityScale: 1 },
+        { values: shapeLayer, intensityScale: 1 },
+      ],
+      programmer.values,
+      buf,
+    );
+
+    expect(buf.get(0)[9]).toBe(50); // LTP: last layer wins
+  });
+
+  it('master fader scales a layer’s intensity', () => {
+    const cueLayer = new Map<string, ChannelValues>([['f-dimmer', { Dimmer: 200 }]]);
+
+    const buf = new UniverseBuffer();
+    mergeToBuffer([dimmerFixture], [{ values: cueLayer, intensityScale: 0.5 }], programmer.values, buf);
+
+    expect(buf.get(0)[0]).toBe(100); // 200 * 0.5
+  });
+
+  it('master fader does not scale non-intensity channels', () => {
+    const cueLayer = new Map<string, ChannelValues>([['f-rgb', { Red: 200 }]]);
+
+    const buf = new UniverseBuffer();
+    mergeToBuffer([rgbFixture], [{ values: cueLayer, intensityScale: 0.25 }], programmer.values, buf);
+
+    expect(buf.get(0)[9]).toBe(200); // colour unaffected by master
+  });
+
+  it('master at 0 blacks out that layer’s intensity (HTP with others still applies)', () => {
+    const cueLayer = new Map<string, ChannelValues>([['f-dimmer', { Dimmer: 255 }]]);
+    const chaseLayer = new Map<string, ChannelValues>([['f-dimmer', { Dimmer: 120 }]]);
+
+    const buf = new UniverseBuffer();
+    mergeToBuffer(
+      [dimmerFixture],
+      [
+        { values: cueLayer, intensityScale: 0 }, // master down
+        { values: chaseLayer, intensityScale: 1 }, // full
+      ],
+      programmer.values,
+      buf,
+    );
+
+    expect(buf.get(0)[0]).toBe(120); // max(255*0, 120*1)
   });
 });
 

@@ -6,15 +6,28 @@ import { getFixtureDef } from '../fixtures/loader.js';
 const HTP_GROUPS = new Set(['Intensity']);
 
 /**
- * Merge cue values and programmer values into a universe buffer using HTP/LTP rules:
- *   - Intensity channels → HTP (max of cue and programmer)
- *   - All other channels → LTP (programmer wins if active, else cue)
+ * One playback source feeding the merge. Layers are supplied in ascending LTP
+ * priority (lowest first), e.g. cue lists, then chases, then shapes. The
+ * programmer always sits above all layers.
+ */
+export interface MergeLayer {
+  values: Map<string, ChannelValues>;
+  /** 0–1 multiplier applied to this layer's Intensity-group channels (master fader). */
+  intensityScale: number;
+}
+
+/**
+ * Merge playback layers + programmer into a universe buffer:
+ *   - Intensity channels → HTP: the highest value across every layer (each
+ *     scaled by its master fader) and the programmer.
+ *   - All other channels → LTP: programmer wins if set, otherwise the
+ *     highest-priority layer that defines the channel.
  *
  * Clears the buffer before writing, so every call produces a fresh snapshot.
  */
 export function mergeToBuffer(
   fixtures: PatchedFixture[],
-  cueValues: Map<string, ChannelValues>,
+  layers: MergeLayer[],
   programmerValues: Map<string, ChannelValues>,
   target: UniverseBuffer,
 ): void {
@@ -30,7 +43,6 @@ export function mergeToBuffer(
     const mode = def.modes[fixture.modeIndex];
     if (!mode) continue;
 
-    const cue = cueValues.get(fixture.id) ?? {};
     const prog = programmerValues.get(fixture.id) ?? {};
 
     mode.channelNames.forEach((channelName, i) => {
@@ -39,14 +51,28 @@ export function mergeToBuffer(
       // DMX channel is 1-based: fixture.address + channel offset
       const dmxChannel = fixture.address + i;
 
-      const cueVal = cue[channelName] ?? 0;
       const progVal = prog[channelName];
 
       let finalVal: number;
-      if (progVal !== undefined) {
-        finalVal = HTP_GROUPS.has(group) ? Math.max(cueVal, progVal) : progVal;
+      if (HTP_GROUPS.has(group)) {
+        // HTP: highest scaled value across all playback layers + programmer.
+        let v = 0;
+        for (const layer of layers) {
+          const raw = layer.values.get(fixture.id)?.[channelName];
+          if (raw !== undefined) v = Math.max(v, raw * layer.intensityScale);
+        }
+        if (progVal !== undefined) v = Math.max(v, progVal);
+        finalVal = Math.round(v);
+      } else if (progVal !== undefined) {
+        // LTP: programmer overrides everything.
+        finalVal = progVal;
       } else {
-        finalVal = cueVal;
+        // LTP: last (highest-priority) layer that defines the channel wins.
+        finalVal = 0;
+        for (const layer of layers) {
+          const raw = layer.values.get(fixture.id)?.[channelName];
+          if (raw !== undefined) finalVal = raw;
+        }
       }
 
       target.setChannel(fixture.universe, dmxChannel, finalVal);

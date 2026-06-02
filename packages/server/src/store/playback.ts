@@ -195,6 +195,14 @@ export const playbackEngine = {
     };
   },
 
+  /** Per-cue-list current values, in playback order (for master-scaled merging). */
+  getActivePlaybackValues(): { cueListId: string; values: Map<string, ChannelValues> }[] {
+    return [...playbacks.values()].map((pb) => ({
+      cueListId: pb.cueListId,
+      values: pb.currentValues,
+    }));
+  },
+
   /** Merged DMX output across all active playbacks (LTP between cue lists). */
   getCueValues(): Map<string, ChannelValues> {
     const merged = new Map<string, ChannelValues>();
