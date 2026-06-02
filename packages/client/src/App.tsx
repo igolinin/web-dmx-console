@@ -7,7 +7,6 @@ import { KeyMapModal } from './components/KeyMapModal.js';
 import { PatchView } from './views/PatchView.js';
 import { ProgrammerView } from './views/ProgrammerView.js';
 import { CueListView } from './views/CueListView.js';
-import { ChaseView } from './views/ChaseView.js';
 import { FixtureLibView } from './views/FixtureLibView.js';
 import { PlaybackView } from './views/PlaybackView.js';
 import { DEFAULT_KEY_BINDINGS } from '@dmx-console/shared';
@@ -16,9 +15,8 @@ const NAV_ITEMS: { id: View; label: string; shortcut: string }[] = [
   { id: 'patch', label: 'Patch', shortcut: 'Alt+1' },
   { id: 'programmer', label: 'Programmer', shortcut: 'Alt+2' },
   { id: 'cuelist', label: 'Cues', shortcut: 'Alt+3' },
-  { id: 'chase', label: 'Chases', shortcut: 'Alt+4' },
-  { id: 'library', label: 'Library', shortcut: 'Alt+5' },
-  { id: 'playback', label: 'Playback', shortcut: 'Alt+6' },
+  { id: 'library', label: 'Library', shortcut: 'Alt+4' },
+  { id: 'playback', label: 'Playback', shortcut: 'Alt+5' },
 ];
 
 // Global chase tempo: shared by all chases, editable from any tab.
@@ -159,8 +157,6 @@ export default function App() {
         return <ProgrammerView />;
       case 'cuelist':
         return <CueListView />;
-      case 'chase':
-        return <ChaseView />;
       case 'library':
         return <FixtureLibView />;
       case 'playback':

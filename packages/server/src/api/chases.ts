@@ -122,6 +122,19 @@ chasesRouter.post('/:id/steps', (req, res) => {
   res.status(201).json(step);
 });
 
+/** DELETE /api/chases/:id/steps — clear all steps (keeps the chase) */
+chasesRouter.delete('/:id/steps', (req, res) => {
+  const chase = show.chases.find((c) => c.id === req.params.id);
+  if (!chase) {
+    res.status(404).json({ error: 'Chase not found' });
+    return;
+  }
+  chase.steps = [];
+  chaseEngine.stop(chase.id);
+  touchShow();
+  res.json(chase);
+});
+
 chasesRouter.delete('/:id/steps/:stepId', (req, res) => {
   const chase = show.chases.find((c) => c.id === req.params.id);
   if (!chase) {

@@ -16,7 +16,7 @@ import type { NumBuffer, FlashState } from '../keyboard/keyMap.js';
 import { useShowStore } from '../store/useShow.js';
 import { useProgrammer } from '../store/useProgrammer.js';
 
-export type View = 'patch' | 'programmer' | 'cuelist' | 'chase' | 'library' | 'playback';
+export type View = 'patch' | 'programmer' | 'cuelist' | 'library' | 'playback';
 
 interface KeyboardShortcutsOptions {
   setView: (v: View) => void;
@@ -82,9 +82,6 @@ export function useKeyboardShortcuts({
           break;
         case 'ui.view.cuelist':
           setView('cuelist');
-          break;
-        case 'ui.view.chase':
-          setView('chase');
           break;
         case 'ui.view.library':
           setView('library');

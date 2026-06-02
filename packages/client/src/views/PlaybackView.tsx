@@ -54,16 +54,28 @@ const INTENSITY_PRESETS = [
 
 // ── Vertical fader strip ───────────────────────────────────────────────────
 
+const DIRECTIONS: Chase['direction'][] = ['forward', 'backward', 'bounce', 'random'];
+const DIRECTION_ICON: Record<Chase['direction'], string> = {
+  forward: '→',
+  backward: '←',
+  bounce: '⇄',
+  random: '⁇',
+};
+
 function FaderStrip({
   master,
   cueLists,
   chases,
+  recordMode,
   onChange,
+  refresh,
 }: {
   master: PlaybackMaster;
   cueLists: CueListWithPlayback[];
   chases: ChaseWithStatus[];
+  recordMode: boolean;
   onChange: (updated: Partial<PlaybackMaster>) => void;
+  refresh: () => void;
 }) {
   const [assigning, setAssigning] = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
@@ -75,6 +87,49 @@ function FaderStrip({
 
   const isRunning =
     (assignedCueList?.playback.activeCueIndex ?? -1) >= 0 || assignedChase?.running === true;
+
+  // Record panel is available on chase or empty masters (not cue lists).
+  const canRecord = recordMode && master.assignedType !== 'cueList';
+  const stepCount = assignedChase?.steps.length ?? 0;
+
+  const handleRecord = useCallback(async () => {
+    let chaseId = master.assignedType === 'chase' ? master.assignedId : null;
+    if (!chaseId) {
+      const res = await fetch('/api/chases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: master.label }),
+      });
+      chaseId = ((await res.json()) as { id: string }).id;
+      onChange({ assignedId: chaseId, assignedType: 'chase' });
+    }
+    await fetch(`/api/chases/${chaseId}/steps`, { method: 'POST' });
+    refresh();
+  }, [master.assignedType, master.assignedId, master.label, onChange, refresh]);
+
+  const handleClearLast = useCallback(async () => {
+    if (!assignedChase || assignedChase.steps.length === 0) return;
+    const last = assignedChase.steps[assignedChase.steps.length - 1]!;
+    await fetch(`/api/chases/${assignedChase.id}/steps/${last.id}`, { method: 'DELETE' });
+    refresh();
+  }, [assignedChase, refresh]);
+
+  const handleClearAll = useCallback(async () => {
+    if (!assignedChase) return;
+    await fetch(`/api/chases/${assignedChase.id}/steps`, { method: 'DELETE' });
+    refresh();
+  }, [assignedChase, refresh]);
+
+  const cycleDirection = useCallback(async () => {
+    if (!assignedChase) return;
+    const next = DIRECTIONS[(DIRECTIONS.indexOf(assignedChase.direction) + 1) % DIRECTIONS.length]!;
+    await fetch(`/api/chases/${assignedChase.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction: next }),
+    });
+    refresh();
+  }, [assignedChase, refresh]);
 
   const handleGo = useCallback(async () => {
     if (!master.assignedId) return;
@@ -233,6 +288,48 @@ function FaderStrip({
           </button>
         )}
       </div>
+
+      {/* Record panel (only while record mode is armed) */}
+      {canRecord && (
+        <div className="w-full p-1 flex flex-col gap-1 border-t border-console-danger/40 bg-console-danger/5">
+          <button
+            className="w-full py-1.5 text-xs font-bold rounded bg-console-danger/80 text-white hover:bg-red-600 flex items-center justify-center gap-1"
+            onClick={() => void handleRecord()}
+            title="Record a step from the current programmer look"
+          >
+            <span className="text-[8px]">●</span> Rec
+          </button>
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] text-console-dim tabular-nums">{stepCount} st</span>
+            <button
+              className="px-1 py-0.5 text-[10px] rounded border border-console-border text-console-dim hover:text-console-text disabled:opacity-30"
+              onClick={() => void cycleDirection()}
+              disabled={!assignedChase}
+              title={`Direction: ${assignedChase?.direction ?? 'forward'}`}
+            >
+              {DIRECTION_ICON[assignedChase?.direction ?? 'forward']}
+            </button>
+          </div>
+          <div className="flex gap-1">
+            <button
+              className="flex-1 py-0.5 text-[10px] rounded border border-console-border text-console-dim hover:text-console-text disabled:opacity-30"
+              onClick={() => void handleClearLast()}
+              disabled={stepCount === 0}
+              title="Remove the last recorded step"
+            >
+              ↶ Last
+            </button>
+            <button
+              className="flex-1 py-0.5 text-[10px] rounded border border-console-danger/30 text-console-danger hover:bg-console-danger/20 disabled:opacity-30"
+              onClick={() => void handleClearAll()}
+              disabled={stepCount === 0}
+              title="Clear all steps"
+            >
+              ✕ All
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -424,6 +521,7 @@ export function PlaybackView() {
   const [chases, setChases] = useState<ChaseWithStatus[]>([]);
   const [shapes, setShapes] = useState<ShapeLayer[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [recordMode, setRecordMode] = useState(false);
   // Local copy of masters; synced with show.settings.playbackMasters
   const [masters, setMasters] = useState<PlaybackMaster[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -622,9 +720,23 @@ export function PlaybackView() {
     <div className="h-full overflow-y-auto flex flex-col">
       {/* ── Master fader strips ─────────────────────────────────────────── */}
       <div className="p-3 border-b border-console-border shrink-0">
-        <div className="flex items-baseline justify-between mb-2">
-          <div className="text-xs font-semibold text-console-dim uppercase tracking-wider">
-            Playback Masters
+        <div className="flex items-center justify-between mb-2 gap-3">
+          <div className="flex items-center gap-2">
+            <div className="text-xs font-semibold text-console-dim uppercase tracking-wider">
+              Playback Masters
+            </div>
+            <button
+              className={[
+                'px-2 py-0.5 text-xs rounded border flex items-center gap-1 transition-colors',
+                recordMode
+                  ? 'bg-console-danger/80 text-white border-console-danger animate-pulse'
+                  : 'border-console-border text-console-dim hover:text-console-text',
+              ].join(' ')}
+              onClick={() => setRecordMode((v) => !v)}
+              title="Toggle record mode — record chase steps onto a master"
+            >
+              <span className="text-[8px]">●</span> {recordMode ? 'Recording' : 'Record'}
+            </button>
           </div>
           <div className="text-[10px] text-console-dim">
             Keys: <span className="text-console-text">Q–P</span> up ·{' '}
@@ -632,14 +744,21 @@ export function PlaybackView() {
             <span className="text-console-text">Z–/</span> flash
           </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        <div
+          className={[
+            'flex gap-2 overflow-x-auto pb-1 rounded',
+            recordMode ? 'ring-1 ring-console-danger/50 p-1' : '',
+          ].join(' ')}
+        >
           {masters.map((m, idx) => (
             <FaderStrip
               key={m.id}
               master={m}
               cueLists={cueLists}
               chases={chases}
+              recordMode={recordMode}
               onChange={(patch) => updateMaster(idx, patch)}
+              refresh={refresh}
             />
           ))}
         </div>
