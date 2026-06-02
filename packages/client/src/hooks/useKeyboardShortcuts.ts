@@ -10,6 +10,7 @@ import {
   flashStart,
   flashEnd,
   emptyFlashState,
+  PLAYBACK_GRID_KEYS,
 } from '../keyboard/keyMap.js';
 import type { NumBuffer, FlashState } from '../keyboard/keyMap.js';
 import { useShowStore } from '../store/useShow.js';
@@ -21,12 +22,14 @@ interface KeyboardShortcutsOptions {
   setView: (v: View) => void;
   toggleHelp: () => void;
   activeCueListId?: string | undefined;
+  view: View;
 }
 
 export function useKeyboardShortcuts({
   setView,
   toggleHelp,
   activeCueListId,
+  view,
 }: KeyboardShortcutsOptions): void {
   const show = useShowStore((s) => s.show);
   const programmer = useProgrammer();
@@ -128,6 +131,17 @@ export function useKeyboardShortcuts({
 
       const ke = keyEventFromNative(e);
 
+      // On the Playback page, the playback grid (q-p / a-; / z-/) owns these
+      // keys; skip overlapping global shortcuts (panel/tap letters) here.
+      if (
+        view === 'playback' &&
+        !ke.ctrl &&
+        !ke.alt &&
+        PLAYBACK_GRID_KEYS.has(ke.key.toLowerCase())
+      ) {
+        return;
+      }
+
       // ── Flash mode (Shift+F1–F8 held) ────────────────────────────────────────
       const flashMatch = /^F([1-8])$/.exec(ke.key);
       if (flashMatch && ke.shift && flashedKeyRef.current === null) {
@@ -225,5 +239,5 @@ export function useKeyboardShortcuts({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [show, bindings, dispatch, programmer]);
+  }, [show, bindings, dispatch, programmer, view]);
 }

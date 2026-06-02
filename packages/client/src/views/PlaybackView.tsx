@@ -9,6 +9,14 @@ import type {
   ShapeLayer,
 } from '@dmx-console/shared';
 import { useShowStore } from '../store/useShow.js';
+import {
+  isInputFocused,
+  PLAYBACK_UP_KEYS as UP_KEYS,
+  PLAYBACK_DOWN_KEYS as DOWN_KEYS,
+  PLAYBACK_FLASH_KEYS as FLASH_KEYS,
+} from '../keyboard/keyMap.js';
+
+const LEVEL_STEP = 5; // % per key press (auto-repeat ramps while held)
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -488,6 +496,124 @@ export function PlaybackView() {
     [saveMasters],
   );
 
+  // Latest values for the keyboard handlers (avoids stale-closure rebinding).
+  const mastersRef = useRef(masters);
+  mastersRef.current = masters;
+  const cueListsRef = useRef(cueLists);
+  cueListsRef.current = cueLists;
+  const chasesRef = useRef(chases);
+  chasesRef.current = chases;
+  // Per-master state captured at flash-start so key-up can restore it.
+  const flashPrevRef = useRef<Map<number, { level: number; wasRunning: boolean }>>(new Map());
+
+  // Immediately persist masters (used by flash, which must be responsive).
+  const saveMastersNow = useCallback((updated: PlaybackMaster[]) => {
+    dirtyRef.current = true;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    void fetch('/api/show/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playbackMasters: updated }),
+    })
+      .then(() => {
+        dirtyRef.current = false;
+      })
+      .catch(() => {
+        dirtyRef.current = false;
+      });
+  }, []);
+
+  const setLevelNow = useCallback(
+    (idx: number, level: number) => {
+      setMasters((prev) => {
+        const next = prev.map((m, i) => (i === idx ? { ...m, level } : m));
+        saveMastersNow(next);
+        return next;
+      });
+    },
+    [saveMastersNow],
+  );
+
+  const triggerPlayback = useCallback((master: PlaybackMaster, action: 'go' | 'release') => {
+    if (!master.assignedId) return;
+    if (master.assignedType === 'cueList') {
+      const verb = action === 'go' ? 'go' : 'release';
+      void fetch(`/api/cueLists/${master.assignedId}/${verb}`, { method: 'POST' });
+    } else if (master.assignedType === 'chase') {
+      const verb = action === 'go' ? 'play' : 'stop';
+      void fetch(`/api/chases/${master.assignedId}/${verb}`, { method: 'POST' });
+    }
+  }, []);
+
+  const isMasterRunning = useCallback((master: PlaybackMaster): boolean => {
+    if (!master.assignedId) return false;
+    if (master.assignedType === 'cueList') {
+      return (
+        (cueListsRef.current.find((cl) => cl.id === master.assignedId)?.playback.activeCueIndex ??
+          -1) >= 0
+      );
+    }
+    return chasesRef.current.find((ch) => ch.id === master.assignedId)?.running === true;
+  }, []);
+
+  // Keyboard playback grid — active only while this page is mounted.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isInputFocused() || e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key.toLowerCase();
+
+      const upIdx = UP_KEYS.indexOf(key);
+      if (upIdx >= 0) {
+        const m = mastersRef.current[upIdx];
+        if (m) {
+          updateMaster(upIdx, { level: Math.min(100, m.level + LEVEL_STEP) });
+          e.preventDefault();
+        }
+        return;
+      }
+
+      const downIdx = DOWN_KEYS.indexOf(key);
+      if (downIdx >= 0) {
+        const m = mastersRef.current[downIdx];
+        if (m) {
+          updateMaster(downIdx, { level: Math.max(0, m.level - LEVEL_STEP) });
+          e.preventDefault();
+        }
+        return;
+      }
+
+      const flashIdx = FLASH_KEYS.indexOf(key);
+      if (flashIdx >= 0) {
+        e.preventDefault();
+        if (e.repeat || flashPrevRef.current.has(flashIdx)) return;
+        const m = mastersRef.current[flashIdx];
+        if (!m?.assignedId) return;
+        const wasRunning = isMasterRunning(m);
+        flashPrevRef.current.set(flashIdx, { level: m.level, wasRunning });
+        setLevelNow(flashIdx, 100);
+        if (!wasRunning) triggerPlayback(m, 'go');
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const flashIdx = FLASH_KEYS.indexOf(e.key.toLowerCase());
+      if (flashIdx < 0) return;
+      const prev = flashPrevRef.current.get(flashIdx);
+      if (!prev) return;
+      flashPrevRef.current.delete(flashIdx);
+      setLevelNow(flashIdx, prev.level);
+      const m = mastersRef.current[flashIdx];
+      if (m && !prev.wasRunning) triggerPlayback(m, 'release');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [updateMaster, setLevelNow, triggerPlayback, isMasterRunning]);
+
   const fixtures = show?.fixtures ?? [];
   const groups = show?.fixtureGroups ?? [];
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
@@ -496,8 +622,15 @@ export function PlaybackView() {
     <div className="h-full overflow-y-auto flex flex-col">
       {/* ── Master fader strips ─────────────────────────────────────────── */}
       <div className="p-3 border-b border-console-border shrink-0">
-        <div className="text-xs font-semibold text-console-dim uppercase tracking-wider mb-2">
-          Playback Masters
+        <div className="flex items-baseline justify-between mb-2">
+          <div className="text-xs font-semibold text-console-dim uppercase tracking-wider">
+            Playback Masters
+          </div>
+          <div className="text-[10px] text-console-dim">
+            Keys: <span className="text-console-text">Q–P</span> up ·{' '}
+            <span className="text-console-text">A–;</span> down ·{' '}
+            <span className="text-console-text">Z–/</span> flash
+          </div>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {masters.map((m, idx) => (

@@ -13,6 +13,20 @@ export function keyEventFromNative(e: KeyboardEvent): KeyEvent {
   return { key: e.key, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey };
 }
 
+// ── Playback keyboard grid (Playback page) ────────────────────────────────────
+// Three rows of 10 keys mapped to the 10 playback masters: raise / lower / flash.
+export const PLAYBACK_UP_KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'];
+export const PLAYBACK_DOWN_KEYS = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';'];
+export const PLAYBACK_FLASH_KEYS = ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'];
+
+/** All single-letter keys owned by the playback grid (used to suppress overlapping
+ *  global shortcuts like the panel/tap letters while on the Playback page). */
+export const PLAYBACK_GRID_KEYS = new Set([
+  ...PLAYBACK_UP_KEYS,
+  ...PLAYBACK_DOWN_KEYS,
+  ...PLAYBACK_FLASH_KEYS,
+]);
+
 // ── Key resolver ──────────────────────────────────────────────────────────────
 
 /** Returns the first binding that matches the key event, or null. */

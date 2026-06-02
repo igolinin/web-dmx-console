@@ -7,6 +7,10 @@ import {
   flashStart,
   flashEnd,
   emptyFlashState,
+  PLAYBACK_UP_KEYS,
+  PLAYBACK_DOWN_KEYS,
+  PLAYBACK_FLASH_KEYS,
+  PLAYBACK_GRID_KEYS,
 } from '../src/keyboard/keyMap.js';
 import { DEFAULT_KEY_BINDINGS } from '@dmx-console/shared';
 import type { KeyBinding } from '@dmx-console/shared';
@@ -226,5 +230,25 @@ describe('flash mode', () => {
     const toSet = flashStart(['f1'], {}, 'Dimmer', state);
     expect(toSet.get('f1')).toBe(255);
     expect(state.held.get('f1')).toBe(0);
+  });
+});
+
+// ── Playback keyboard grid ──────────────────────────────────────────────────
+
+describe('playback keyboard grid', () => {
+  it('each row maps to exactly the 10 masters', () => {
+    expect(PLAYBACK_UP_KEYS).toHaveLength(10);
+    expect(PLAYBACK_DOWN_KEYS).toHaveLength(10);
+    expect(PLAYBACK_FLASH_KEYS).toHaveLength(10);
+  });
+
+  it('rows do not overlap (30 distinct keys)', () => {
+    expect(PLAYBACK_GRID_KEYS.size).toBe(30);
+  });
+
+  it('grid set contains every row key', () => {
+    for (const k of [...PLAYBACK_UP_KEYS, ...PLAYBACK_DOWN_KEYS, ...PLAYBACK_FLASH_KEYS]) {
+      expect(PLAYBACK_GRID_KEYS.has(k)).toBe(true);
+    }
   });
 });

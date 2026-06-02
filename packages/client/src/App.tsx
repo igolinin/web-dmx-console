@@ -148,6 +148,7 @@ export default function App() {
     setView,
     toggleHelp: () => setHelpOpen((o) => !o),
     activeCueListId: show?.settings.activeCueListId,
+    view,
   });
 
   const renderView = () => {
