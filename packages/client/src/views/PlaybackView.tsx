@@ -417,9 +417,13 @@ export function PlaybackView() {
   // Local copy of masters; synced with show.settings.playbackMasters
   const [masters, setMasters] = useState<PlaybackMaster[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while there are local edits not yet persisted; prevents an incoming
+  // state:update (often triggered by our own save) from reverting a live drag.
+  const dirtyRef = useRef(false);
 
-  // Initialise masters from show
+  // Initialise / resync masters from the show store, unless we have pending edits
   useEffect(() => {
+    if (dirtyRef.current) return;
     if (show?.settings.playbackMasters) {
       setMasters(show.settings.playbackMasters);
     }
@@ -440,15 +444,23 @@ export function PlaybackView() {
     return () => clearInterval(id);
   }, [refresh]);
 
-  // Persist master changes (debounced)
+  // Persist master changes (debounced). Clears the dirty flag once the server
+  // has the latest values, so subsequent store syncs are adopted again.
   const saveMasters = useCallback((updated: PlaybackMaster[]) => {
+    dirtyRef.current = true;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       void fetch('/api/show/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playbackMasters: updated }),
-      });
+      })
+        .then(() => {
+          dirtyRef.current = false;
+        })
+        .catch(() => {
+          dirtyRef.current = false;
+        });
     }, 400);
   }, []);
 

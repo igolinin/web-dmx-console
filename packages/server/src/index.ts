@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 import { ArtNetSender } from './artnet/sender.js';
 import { UniverseBuffer } from './artnet/universe.js';
-import { show, hydrateShow } from './store/show.js';
+import { show, hydrateShow, setShowBroadcaster } from './store/show.js';
 import { programmer } from './store/programmer.js';
 import { playbackEngine } from './store/playback.js';
 import { chaseEngine } from './store/chaseEngine.js';
@@ -22,7 +22,7 @@ import { showFileRouter } from './api/showFile.js';
 import { groupsRouter } from './api/groups.js';
 import { createAgentRouter } from './api/agent.js';
 import { docsRouter } from './api/openapi.js';
-import type { WsDmxTick, WsChaseStep } from '@dmx-console/shared';
+import type { WsDmxTick, WsChaseStep, WsStateUpdate } from '@dmx-console/shared';
 
 const PORT = 3000;
 const AUTO_SAVE_MS = 30_000;
@@ -39,6 +39,11 @@ app.use(express.json());
 const httpServer = createServer(app);
 export const io = new Server(httpServer, {
   cors: { origin: '*' },
+});
+
+// Notify all clients to refresh their show state after any mutation (touchShow).
+setShowBroadcaster(() => {
+  io.emit('state:update', { changed: [] } satisfies WsStateUpdate);
 });
 
 // ── REST routes ───────────────────────────────────────────────────────────────

@@ -27,8 +27,18 @@ export const show: Show = {
   },
 };
 
+// Broadcaster wired up by the server entrypoint so the store needn't import the
+// Socket.io instance (avoids a circular dependency). Notifies clients to refresh
+// their show state after any mutation.
+let broadcaster: (() => void) | null = null;
+
+export function setShowBroadcaster(fn: () => void): void {
+  broadcaster = fn;
+}
+
 export function touchShow(): void {
   show.meta.modifiedAt = new Date().toISOString();
+  broadcaster?.();
 }
 
 /**
