@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { programmer } from '../store/programmer.js';
+import { show, touchShow } from '../store/show.js';
 
 export const programmerRouter = Router();
 
@@ -45,6 +46,23 @@ programmerRouter.post('/clear', (req, res) => {
     res.status(400).json({ error: 'Invalid body', details: parsed.error.issues });
     return;
   }
-  programmer.clear(parsed.data.fixtureId);
+  const { fixtureId } = parsed.data;
+  programmer.clear(fixtureId);
+
+  // Shapes are live programmer effects (they oscillate around programmer values),
+  // so clearing the programmer also removes the shapes built on it.
+  if (fixtureId === undefined) {
+    if (show.shapes.length > 0) {
+      show.shapes = [];
+      touchShow();
+    }
+  } else {
+    const before = show.shapes.length;
+    show.shapes = show.shapes
+      .map((s) => ({ ...s, fixtureIds: s.fixtureIds.filter((id) => id !== fixtureId) }))
+      .filter((s) => s.fixtureIds.length > 0);
+    if (show.shapes.length !== before) touchShow();
+  }
+
   res.json({ ok: true });
 });
