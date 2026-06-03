@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { generateFixtureFromPdf } from '../src/llm/fixtureGen.js';
+import {
+  generateFixtureFromPdf,
+  generateFixtureFromText,
+  generateFixtureFromKnowledge,
+} from '../src/llm/fixtureGen.js';
 import { LlmError, type LlmProvider } from '../src/llm/providers.js';
 
 /** Stub provider that returns a fixed response regardless of input. */
@@ -147,6 +151,76 @@ describe('generateFixtureFromPdf', () => {
     };
     await expect(
       generateFixtureFromPdf({ text: '   ', provider: 'claude', model: 't', llm: spy }),
+    ).rejects.toBeInstanceOf(LlmError);
+    expect(called).toBe(false);
+  });
+});
+
+describe('generateFixtureFromText', () => {
+  it('parses pasted text into a fixture (same path as PDF)', async () => {
+    const def = await generateFixtureFromText({
+      text: '1: Pan\n2: Tilt',
+      provider: 'claude',
+      model: 'test',
+      llm: stubProvider(MULTI_MODE_JSON),
+    });
+    expect(def.id).toBe('acme_lighting_spot_250');
+    expect(def.source).toBe('llm');
+  });
+
+  it('rejects empty pasted text without calling the provider', async () => {
+    let called = false;
+    const spy: LlmProvider = {
+      complete: () => {
+        called = true;
+        return Promise.resolve('{}');
+      },
+    };
+    await expect(
+      generateFixtureFromText({ text: '  ', provider: 'claude', model: 't', llm: spy }),
+    ).rejects.toBeInstanceOf(LlmError);
+    expect(called).toBe(false);
+  });
+});
+
+describe('generateFixtureFromKnowledge', () => {
+  it('generates a fixture from make + model and passes both to the prompt', async () => {
+    let prompt = '';
+    const spy: LlmProvider = {
+      complete: (_system, user) => {
+        prompt = user;
+        return Promise.resolve(MULTI_MODE_JSON);
+      },
+    };
+    const def = await generateFixtureFromKnowledge({
+      manufacturer: 'Acme Lighting',
+      modelName: 'Spot 250',
+      provider: 'claude',
+      model: 'test',
+      llm: spy,
+    });
+    expect(def.id).toBe('acme_lighting_spot_250');
+    expect(def.source).toBe('llm');
+    expect(prompt).toContain('Acme Lighting');
+    expect(prompt).toContain('Spot 250');
+  });
+
+  it('requires both manufacturer and model before calling the provider', async () => {
+    let called = false;
+    const spy: LlmProvider = {
+      complete: () => {
+        called = true;
+        return Promise.resolve(MULTI_MODE_JSON);
+      },
+    };
+    await expect(
+      generateFixtureFromKnowledge({
+        manufacturer: 'Acme',
+        modelName: '   ',
+        provider: 'claude',
+        model: 't',
+        llm: spy,
+      }),
     ).rejects.toBeInstanceOf(LlmError);
     expect(called).toBe(false);
   });

@@ -13,6 +13,14 @@ const PROVIDER_LABELS: Record<ProviderInfo['name'], string> = {
   deepseek: 'DeepSeek',
 };
 
+type GenMode = 'pdf' | 'text' | 'discover';
+
+const MODE_TABS: { id: GenMode; label: string }[] = [
+  { id: 'pdf', label: 'PDF manual' },
+  { id: 'text', label: 'Paste text' },
+  { id: 'discover', label: 'By make & model' },
+];
+
 export function FixtureGenModal({
   onClose,
   onSaved,
@@ -23,7 +31,11 @@ export function FixtureGenModal({
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [provider, setProvider] = useState<ProviderInfo['name']>('claude');
   const [model, setModel] = useState('');
+  const [mode, setMode] = useState<GenMode>('pdf');
   const [file, setFile] = useState<File | null>(null);
+  const [text, setText] = useState('');
+  const [manufacturer, setManufacturer] = useState('');
+  const [modelName, setModelName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<FixtureDef | null>(null);
@@ -51,21 +63,39 @@ export function FixtureGenModal({
     if (info) setModel(info.defaultModel);
   };
 
+  const ready =
+    mode === 'pdf'
+      ? !!file
+      : mode === 'text'
+        ? text.trim() !== ''
+        : manufacturer.trim() !== '' && modelName.trim() !== '';
+
   const handleGenerate = () => {
-    if (!file) {
-      setError('Choose a PDF manual first');
-      return;
-    }
+    if (!ready) return;
     setBusy(true);
     setError(null);
     setPreview(null);
 
-    const form = new FormData();
-    form.append('pdf', file);
-    form.append('provider', provider);
-    if (model) form.append('model', model);
+    let request: Promise<Response>;
+    if (mode === 'pdf') {
+      const form = new FormData();
+      form.append('pdf', file!);
+      form.append('provider', provider);
+      if (model) form.append('model', model);
+      request = fetch('/api/fixtures/generate', { method: 'POST', body: form });
+    } else {
+      const body =
+        mode === 'text'
+          ? { mode, provider, model: model || undefined, text }
+          : { mode, provider, model: model || undefined, manufacturer, model_name: modelName };
+      request = fetch('/api/fixtures/generate-text', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    }
 
-    void fetch('/api/fixtures/generate', { method: 'POST', body: form })
+    void request
       .then(async (r) => {
         const json = (await r.json()) as { fixture?: FixtureDef; error?: string };
         if (!r.ok) throw new Error(json.error ?? `Request failed (${r.status})`);
@@ -105,26 +135,94 @@ export function FixtureGenModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-console-border">
-          <h2 className="text-console-text font-semibold">✨ Create fixture from manual (AI)</h2>
+          <h2 className="text-console-text font-semibold">✨ Create fixture (AI)</h2>
           <button className="text-console-dim hover:text-console-text text-sm" onClick={onClose}>
             ✕ Close
           </button>
         </div>
 
         <div className="p-4 space-y-4">
-          {/* PDF picker */}
-          <div>
-            <label className="block text-xs font-semibold text-console-accent mb-1">
-              Fixture manual (PDF)
-            </label>
-            <input
-              ref={fileInput}
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-xs text-console-dim file:mr-3 file:py-1 file:px-3 file:rounded file:border file:border-console-border file:bg-console-bg file:text-console-text file:text-xs file:cursor-pointer"
-            />
+          {/* Input mode selector */}
+          <div className="flex gap-1">
+            {MODE_TABS.map((t) => (
+              <button
+                key={t.id}
+                className={[
+                  'px-3 py-1 text-xs rounded border transition-colors',
+                  mode === t.id
+                    ? 'bg-console-active/20 border-console-active text-console-text'
+                    : 'border-console-border text-console-dim hover:text-console-text',
+                ].join(' ')}
+                onClick={() => {
+                  setMode(t.id);
+                  setError(null);
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
+
+          {/* Per-mode input */}
+          {mode === 'pdf' && (
+            <div>
+              <label className="block text-xs font-semibold text-console-accent mb-1">
+                Fixture manual (PDF)
+              </label>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="application/pdf,.pdf"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                className="block w-full text-xs text-console-dim file:mr-3 file:py-1 file:px-3 file:rounded file:border file:border-console-border file:bg-console-bg file:text-console-text file:text-xs file:cursor-pointer"
+              />
+            </div>
+          )}
+
+          {mode === 'text' && (
+            <div>
+              <label className="block text-xs font-semibold text-console-accent mb-1">
+                Paste DMX channel map / manual text
+              </label>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={8}
+                placeholder={'e.g.\n1: Pan\n2: Tilt\n3: Dimmer\n4: Red\n5: Green\n6: Blue'}
+                className="w-full bg-console-bg border border-console-border rounded px-2 py-1 text-xs text-console-text font-mono focus:outline-none focus:border-console-active resize-y"
+              />
+            </div>
+          )}
+
+          {mode === 'discover' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-console-accent mb-1">
+                  Manufacturer
+                </label>
+                <input
+                  className="w-full bg-console-bg border border-console-border rounded px-2 py-1 text-sm text-console-text focus:outline-none focus:border-console-active"
+                  value={manufacturer}
+                  onChange={(e) => setManufacturer(e.target.value)}
+                  placeholder="e.g. Chauvet"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-console-accent mb-1">
+                  Model
+                </label>
+                <input
+                  className="w-full bg-console-bg border border-console-border rounded px-2 py-1 text-sm text-console-text focus:outline-none focus:border-console-active"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  placeholder="e.g. SlimPAR Pro H USB"
+                />
+              </div>
+              <div className="col-span-2 text-[11px] text-console-muted">
+                The AI builds this from its own knowledge — review the channel map before saving.
+              </div>
+            </div>
+          )}
 
           {/* Provider + model */}
           <div className="grid grid-cols-2 gap-3">
@@ -165,9 +263,9 @@ export function FixtureGenModal({
           <button
             className="px-3 py-1.5 text-sm rounded bg-console-active text-white disabled:opacity-40"
             onClick={handleGenerate}
-            disabled={busy || !file || (selected ? !selected.configured : false)}
+            disabled={busy || !ready || (selected ? !selected.configured : false)}
           >
-            {busy && !preview ? 'Reading manual…' : 'Generate'}
+            {busy && !preview ? 'Generating…' : 'Generate'}
           </button>
 
           {error && (

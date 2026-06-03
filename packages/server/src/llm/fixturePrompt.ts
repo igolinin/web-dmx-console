@@ -34,3 +34,16 @@ Capture every DMX mode as a separate entry in "modes", each with its verbatim ch
 ${manualText}
 --- MANUAL TEXT END ---`;
 }
+
+export function buildFixtureDiscoveryPrompt(manufacturer: string, model: string): string {
+  return `Produce the JSON fixture definition described above for this specific fixture, \
+using your own knowledge of it (no manual is provided):
+
+  Manufacturer: ${manufacturer}
+  Model: ${model}
+
+Include every DMX mode you know this fixture supports as a separate entry in "modes", \
+each with its channel list in DMX order and a "description" giving the channel map. \
+Only describe channels and modes you are reasonably confident this fixture actually has; \
+omit any optional field you are unsure of rather than guessing. Do not invent extra modes.`;
+}

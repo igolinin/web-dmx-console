@@ -2,7 +2,11 @@ import type { FixtureDef } from '@dmx-console/shared';
 import { slugify } from '../fixtures/parser.js';
 import { getProvider, LlmError, type LlmProvider, type ProviderName } from './providers.js';
 import { FixtureDefSchema } from './fixtureSchema.js';
-import { FIXTURE_SYSTEM_PROMPT, buildFixtureUserPrompt } from './fixturePrompt.js';
+import {
+  FIXTURE_SYSTEM_PROMPT,
+  buildFixtureUserPrompt,
+  buildFixtureDiscoveryPrompt,
+} from './fixturePrompt.js';
 
 /** Extract the first balanced JSON object from a model response. */
 function extractJson(raw: string): unknown {
@@ -42,28 +46,8 @@ function synthesizeDefaultMode(obj: unknown): void {
   ];
 }
 
-export interface GenerateOptions {
-  text: string;
-  provider: ProviderName;
-  model: string;
-  /** Inject a provider for testing; defaults to the real one. */
-  llm?: LlmProvider;
-}
-
-/**
- * Build the prompt, call the selected LLM provider, then parse and validate its
- * response into a FixtureDef. The returned def has a server-assigned `id` and
- * `source: 'llm'`; it is NOT persisted here.
- */
-export async function generateFixtureFromPdf(opts: GenerateOptions): Promise<FixtureDef> {
-  const { text, provider, model } = opts;
-  if (!text.trim()) {
-    throw new LlmError('No text could be extracted from the PDF', 400);
-  }
-
-  const llm = opts.llm ?? getProvider(provider);
-  const raw = await llm.complete(FIXTURE_SYSTEM_PROMPT, buildFixtureUserPrompt(text), model);
-
+/** Parse, validate and finalize a raw model response into a FixtureDef. */
+function finalizeFixture(raw: string): FixtureDef {
   const obj = extractJson(raw);
   synthesizeDefaultMode(obj);
   const parsed = FixtureDefSchema.safeParse(obj);
@@ -90,4 +74,60 @@ export async function generateFixtureFromPdf(opts: GenerateOptions): Promise<Fix
     id: `${slugify(data.manufacturer)}_${slugify(data.model)}`,
     source: 'llm',
   } as FixtureDef;
+}
+
+export interface GenerateOptions {
+  text: string;
+  provider: ProviderName;
+  model: string;
+  /** Inject a provider for testing; defaults to the real one. */
+  llm?: LlmProvider;
+}
+
+/**
+ * Build the prompt from supplied manual/snippet text, call the selected LLM
+ * provider, then parse and validate its response into a FixtureDef. The returned
+ * def has a server-assigned `id` and `source: 'llm'`; it is NOT persisted here.
+ */
+export async function generateFixtureFromText(opts: GenerateOptions): Promise<FixtureDef> {
+  const { text, provider, model } = opts;
+  if (!text.trim()) {
+    throw new LlmError('No fixture text was provided', 400);
+  }
+
+  const llm = opts.llm ?? getProvider(provider);
+  const raw = await llm.complete(FIXTURE_SYSTEM_PROMPT, buildFixtureUserPrompt(text), model);
+  return finalizeFixture(raw);
+}
+
+/** Backwards-compatible alias (PDF text and pasted text take the same path). */
+export const generateFixtureFromPdf = generateFixtureFromText;
+
+export interface DiscoverOptions {
+  manufacturer: string;
+  /** The fixture model name (not the LLM model id). */
+  modelName: string;
+  provider: ProviderName;
+  model: string;
+  /** Inject a provider for testing; defaults to the real one. */
+  llm?: LlmProvider;
+}
+
+/**
+ * Generate a FixtureDef from the model's own knowledge of a given make + model,
+ * with no source document. Output is parsed/validated like the text path.
+ */
+export async function generateFixtureFromKnowledge(opts: DiscoverOptions): Promise<FixtureDef> {
+  const { manufacturer, modelName, provider, model } = opts;
+  if (!manufacturer.trim() || !modelName.trim()) {
+    throw new LlmError('Both manufacturer and model are required', 400);
+  }
+
+  const llm = opts.llm ?? getProvider(provider);
+  const raw = await llm.complete(
+    FIXTURE_SYSTEM_PROMPT,
+    buildFixtureDiscoveryPrompt(manufacturer, modelName),
+    model,
+  );
+  return finalizeFixture(raw);
 }

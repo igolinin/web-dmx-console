@@ -11,7 +11,7 @@ import {
 } from '../fixtures/loader.js';
 import { extractPdfText } from '../fixtures/pdfText.js';
 import { deleteUserFixture, saveUserFixture } from '../fixtures/userStore.js';
-import { generateFixtureFromPdf } from '../llm/fixtureGen.js';
+import { generateFixtureFromText, generateFixtureFromKnowledge } from '../llm/fixtureGen.js';
 import { FixtureDefSchema } from '../llm/fixtureSchema.js';
 import { slugify } from '../fixtures/parser.js';
 import {
@@ -78,7 +78,7 @@ fixturesRouter.post('/generate', generateLimiter, upload.single('pdf'), (req, re
   void (async () => {
     try {
       const text = await extractPdfText(buffer);
-      const fixture = await generateFixtureFromPdf({ text, provider, model });
+      const fixture = await generateFixtureFromText({ text, provider, model });
       res.json({ fixture });
     } catch (err) {
       if (err instanceof LlmError) {
@@ -86,6 +86,62 @@ fixturesRouter.post('/generate', generateLimiter, upload.single('pdf'), (req, re
         return;
       }
       res.status(500).json({ error: `Failed to process PDF: ${(err as Error).message}` });
+    }
+  })();
+});
+
+const GenerateTextBodySchema = z.discriminatedUnion('mode', [
+  z.object({
+    mode: z.literal('text'),
+    provider: z.enum(PROVIDER_NAMES as [ProviderName, ...ProviderName[]]),
+    model: z.string().min(1).optional(),
+    text: z.string().min(1),
+  }),
+  z.object({
+    mode: z.literal('discover'),
+    provider: z.enum(PROVIDER_NAMES as [ProviderName, ...ProviderName[]]),
+    model: z.string().min(1).optional(),
+    manufacturer: z.string().min(1),
+    model_name: z.string().min(1),
+  }),
+]);
+
+/**
+ * POST /api/fixtures/generate-text — generate a FixtureDef preview (not saved)
+ * either from pasted text (`mode: 'text'`) or from the model's own knowledge of a
+ * make + model (`mode: 'discover'`).
+ */
+fixturesRouter.post('/generate-text', generateLimiter, (req, res) => {
+  const parsed = GenerateTextBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid request', details: parsed.error.issues });
+    return;
+  }
+  const data = parsed.data;
+  if (!isProviderConfigured(data.provider)) {
+    res.status(400).json({ error: `Provider "${data.provider}" is not configured on the server` });
+    return;
+  }
+  const model = data.model ?? DEFAULT_MODELS[data.provider];
+
+  void (async () => {
+    try {
+      const fixture =
+        data.mode === 'text'
+          ? await generateFixtureFromText({ text: data.text, provider: data.provider, model })
+          : await generateFixtureFromKnowledge({
+              manufacturer: data.manufacturer,
+              modelName: data.model_name,
+              provider: data.provider,
+              model,
+            });
+      res.json({ fixture });
+    } catch (err) {
+      if (err instanceof LlmError) {
+        res.status(err.status).json({ error: err.message });
+        return;
+      }
+      res.status(500).json({ error: `Failed to generate fixture: ${(err as Error).message}` });
     }
   })();
 });

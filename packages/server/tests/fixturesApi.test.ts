@@ -97,3 +97,26 @@ describe('fixtures CRUD API', () => {
     expect(reverted.body.source).toBe('builtin');
   });
 });
+
+describe('POST /api/fixtures/generate-text validation', () => {
+  it('rejects text mode without text', async () => {
+    const res = await request(app)
+      .post('/api/fixtures/generate-text')
+      .send({ mode: 'text', provider: 'claude' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects discover mode without manufacturer/model_name', async () => {
+    const res = await request(app)
+      .post('/api/fixtures/generate-text')
+      .send({ mode: 'discover', provider: 'claude', manufacturer: 'Acme' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an unknown mode', async () => {
+    const res = await request(app)
+      .post('/api/fixtures/generate-text')
+      .send({ mode: 'telepathy', provider: 'claude' });
+    expect(res.status).toBe(400);
+  });
+});
