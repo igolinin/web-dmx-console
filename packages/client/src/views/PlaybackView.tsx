@@ -522,19 +522,18 @@ export function PlaybackView() {
   const [shapes, setShapes] = useState<ShapeLayer[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [recordMode, setRecordMode] = useState(false);
-  // Local copy of masters; synced with show.settings.playbackMasters
+  // Local copy of masters; this view is the source of truth once mounted.
   const [masters, setMasters] = useState<PlaybackMaster[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // True while there are local edits not yet persisted; prevents an incoming
-  // state:update (often triggered by our own save) from reverting a live drag.
-  const dirtyRef = useRef(false);
 
-  // Initialise / resync masters from the show store, unless we have pending edits
+  // Initialise masters from the show store ONCE (when empty). We deliberately do
+  // not re-adopt the store afterwards: recording/assigning fires several
+  // state:update broadcasts in quick succession, and a late /api/state refetch
+  // would otherwise clobber a just-made local edit (lost assignment / step count).
   useEffect(() => {
-    if (dirtyRef.current) return;
-    if (show?.settings.playbackMasters) {
-      setMasters(show.settings.playbackMasters);
-    }
+    const fromStore = show?.settings.playbackMasters;
+    if (!fromStore?.length) return;
+    setMasters((prev) => (prev.length === 0 ? fromStore : prev));
   }, [show?.settings.playbackMasters]);
 
   const refresh = useCallback(() => {
@@ -563,23 +562,15 @@ export function PlaybackView() {
     return () => clearInterval(id);
   }, [refresh]);
 
-  // Persist master changes (debounced). Clears the dirty flag once the server
-  // has the latest values, so subsequent store syncs are adopted again.
+  // Persist master changes (debounced).
   const saveMasters = useCallback((updated: PlaybackMaster[]) => {
-    dirtyRef.current = true;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
       void fetch('/api/show/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playbackMasters: updated }),
-      })
-        .then(() => {
-          dirtyRef.current = false;
-        })
-        .catch(() => {
-          dirtyRef.current = false;
-        });
+      });
     }, 400);
   }, []);
 
@@ -606,19 +597,12 @@ export function PlaybackView() {
 
   // Immediately persist masters (used by flash, which must be responsive).
   const saveMastersNow = useCallback((updated: PlaybackMaster[]) => {
-    dirtyRef.current = true;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     void fetch('/api/show/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playbackMasters: updated }),
-    })
-      .then(() => {
-        dirtyRef.current = false;
-      })
-      .catch(() => {
-        dirtyRef.current = false;
-      });
+    });
   }, []);
 
   const setLevelNow = useCallback(
