@@ -91,6 +91,10 @@ function FaderStrip({
   // Record panel is available on chase or empty masters (not cue lists).
   const canRecord = recordMode && master.assignedType !== 'cueList';
   const stepCount = assignedChase?.steps.length ?? 0;
+  // The step the chase is currently sitting on (only while running); deleting
+  // targets this one, and the control is disabled when there is no current step.
+  const currentStepIndex = assignedChase?.currentStepIndex ?? -1;
+  const hasCurrentStep = currentStepIndex >= 0 && currentStepIndex < stepCount;
 
   const handleRecord = useCallback(async () => {
     let chaseId = master.assignedType === 'chase' ? master.assignedId : null;
@@ -107,12 +111,13 @@ function FaderStrip({
     refresh();
   }, [master.assignedType, master.assignedId, master.label, onChange, refresh]);
 
-  const handleClearLast = useCallback(async () => {
-    if (!assignedChase || assignedChase.steps.length === 0) return;
-    const last = assignedChase.steps[assignedChase.steps.length - 1]!;
-    await fetch(`/api/chases/${assignedChase.id}/steps/${last.id}`, { method: 'DELETE' });
+  const handleDeleteCurrent = useCallback(async () => {
+    if (!assignedChase || !hasCurrentStep) return;
+    const step = assignedChase.steps[currentStepIndex];
+    if (!step) return;
+    await fetch(`/api/chases/${assignedChase.id}/steps/${step.id}`, { method: 'DELETE' });
     refresh();
-  }, [assignedChase, refresh]);
+  }, [assignedChase, hasCurrentStep, currentStepIndex, refresh]);
 
   const handleClearAll = useCallback(async () => {
     if (!assignedChase) return;
@@ -313,11 +318,15 @@ function FaderStrip({
           <div className="flex gap-1">
             <button
               className="flex-1 py-0.5 text-[10px] rounded border border-console-border text-console-dim hover:text-console-text disabled:opacity-30"
-              onClick={() => void handleClearLast()}
-              disabled={stepCount === 0}
-              title="Remove the last recorded step"
+              onClick={() => void handleDeleteCurrent()}
+              disabled={!hasCurrentStep}
+              title={
+                hasCurrentStep
+                  ? `Delete the current step (#${currentStepIndex + 1})`
+                  : 'Run the chase to a step to delete it'
+              }
             >
-              ↶ Last
+              ✕ Current
             </button>
             <button
               className="flex-1 py-0.5 text-[10px] rounded border border-console-danger/30 text-console-danger hover:bg-console-danger/20 disabled:opacity-30"
