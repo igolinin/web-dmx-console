@@ -100,6 +100,16 @@ export function ShapeSection({
     [shapes, attribute, selectedIds],
   );
 
+  // A shape identical to the one being built already exists on the selection
+  // (same 2D shape, or same waveform+target for 1D) — don't allow duplicates.
+  const isDuplicate = useMemo(
+    () =>
+      mine.some((s) =>
+        is2D ? s.shape2d === shape2d : s.waveform === waveform && s.target === target,
+      ),
+    [mine, is2D, shape2d, waveform, target],
+  );
+
   const patch = useCallback(
     async (id: string, body: Record<string, unknown>) => {
       await fetch(`/api/shapes/${id}`, {
@@ -121,7 +131,7 @@ export function ShapeSection({
   );
 
   const apply = useCallback(async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedIds.length === 0 || isDuplicate) return;
     const base: Record<string, unknown> = {
       label: is2D ? `${shape2d}` : `${waveform} → ${target}`,
       fixtureIds: selectedIds,
@@ -143,7 +153,7 @@ export function ShapeSection({
       body: JSON.stringify(base),
     });
     refreshShapes();
-  }, [selectedIds, is2D, shape2d, waveform, target, refreshShapes]);
+  }, [selectedIds, isDuplicate, is2D, shape2d, waveform, target, refreshShapes]);
 
   return (
     <div className="mt-4 border-t border-console-border pt-3">
@@ -205,10 +215,14 @@ export function ShapeSection({
         <button
           className="px-3 py-1 text-xs rounded bg-console-active text-white hover:bg-blue-600 disabled:opacity-40"
           onClick={() => void apply()}
-          disabled={selectedIds.length === 0}
-          title="Apply shape to the selected fixtures"
+          disabled={selectedIds.length === 0 || isDuplicate}
+          title={
+            isDuplicate
+              ? 'That shape is already applied to this selection'
+              : 'Apply shape to the selected fixtures'
+          }
         >
-          + Apply to selection
+          {isDuplicate ? 'Already applied' : '+ Apply to selection'}
         </button>
       </div>
 

@@ -99,6 +99,7 @@ export const useProgrammer = create<ProgrammerStore>((set, get) => ({
 
   async clear() {
     get()._clearValues();
+    set({ selectedIds: [] });
     await postJson('/api/programmer/clear', {});
   },
 
